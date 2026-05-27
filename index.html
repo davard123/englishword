@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wizard">
+<title>Spelling Quest ⚔️</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: #f5f0e0;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    background: radial-gradient(ellipse at top, #2a1851 0%, #0f0822 60%, #050316 100%);
+    background-attachment: fixed;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    display: flex; flex-direction: column;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    position: relative;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, #fff, transparent),
+      radial-gradient(1px 1px at 60% 70%, #fff, transparent),
+      radial-gradient(1px 1px at 50% 20%, #fff, transparent),
+      radial-gradient(1px 1px at 80% 10%, #fff, transparent),
+      radial-gradient(1px 1px at 90% 50%, #fff, transparent),
+      radial-gradient(1px 1px at 10% 80%, #fff, transparent),
+      radial-gradient(1px 1px at 33% 60%, #ffd, transparent),
+      radial-gradient(2px 2px at 75% 35%, #ffd, transparent);
+    background-size: 400px 400px; opacity: 0.4;
+  }
+
+  /* ── HEADER ───────────────────────────────────────── */
+  header {
+    padding: 10px 16px;
+    background: rgba(15, 8, 34, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(240, 208, 96, 0.2);
+    position: relative; z-index: 10;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .title-mini {
+    font-size: 14px; font-weight: 800;
+    color: #f0d060;
+    flex: 1;
+  }
+  .header-stats { display: flex; gap: 6px; }
+  .stat-pill {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px; font-weight: 800;
+    border: 1px solid;
+  }
+  .stat-xp { background: rgba(240, 208, 96, 0.15); border-color: rgba(240, 208, 96, 0.4); color: #f0d060; }
+  .stat-coin { background: rgba(255, 165, 0, 0.2); border-color: rgba(255, 165, 0, 0.5); color: #ffc850; }
+  .icon-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(240, 208, 96, 0.15);
+    border: 1px solid rgba(240, 208, 96, 0.3);
+    color: #f0d060;
+    font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── MAIN BATTLE AREA ──────────────────────────────── */
+  main {
+    flex: 1; padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    position: relative; z-index: 1;
+  }
+
+  .battle-info {
+    text-align: center;
+    font-size: 13px; font-weight: 700;
+    color: #b9adcc;
+    margin-bottom: -4px;
+  }
+
+  /* ── MONSTER CARD ──────────────────────────────────── */
+  .monster-card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    border-radius: 20px;
+    padding: 18px 16px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .monster-card::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at center top, var(--monster-color, #ba55d3) 0%, transparent 60%);
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  .monster-art {
+    font-size: 110px;
+    line-height: 1;
+    margin: 8px 0;
+    position: relative;
+    display: inline-block;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  }
+  .monster-art.hit { animation: monsterHit 0.5s; }
+  @keyframes monsterHit {
+    0%, 100% { transform: translate(0); filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4)); }
+    20% { transform: translate(-12px, -4px); filter: drop-shadow(0 0 20px #ff4d4d) hue-rotate(180deg) brightness(2); }
+    40% { transform: translate(10px, 2px); filter: drop-shadow(0 0 20px #ff4d4d) hue-rotate(180deg) brightness(2); }
+    60% { transform: translate(-6px, 0); filter: drop-shadow(0 0 20px #ff4d4d); }
+    80% { transform: translate(4px, 0); }
+  }
+  .monster-art.defeated {
+    animation: monsterDefeat 1s forwards;
+  }
+  @keyframes monsterDefeat {
+    0% { opacity: 1; transform: scale(1); filter: brightness(1); }
+    50% { opacity: 1; transform: scale(1.2) rotate(15deg); filter: brightness(3) sepia(1); }
+    100% { opacity: 0; transform: scale(0.3) rotate(45deg) translateY(80px); }
+  }
+  .monster-art img { width: 110px; height: 110px; object-fit: contain; }
+
+  .monster-name {
+    font-size: 22px; font-weight: 900;
+    color: #fff;
+    margin-bottom: 2px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  .monster-title {
+    font-size: 11px; font-weight: 700;
+    color: #b9adcc;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .hp-row { display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+  .hp-label { font-size: 11px; font-weight: 800; color: #ff7777; min-width: 32px; }
+  .hp-bar {
+    flex: 1; height: 12px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 119, 119, 0.5);
+  }
+  .hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff3030, #ff8800);
+    transition: width 0.6s ease-out;
+    box-shadow: 0 0 8px rgba(255, 100, 0, 0.6);
+  }
+  .hp-num { font-size: 12px; font-weight: 900; color: #fff; min-width: 50px; text-align: right; }
+
+  .monster-intro {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    font-size: 13px;
+    color: #f0d060;
+    font-style: italic;
+  }
+
+  /* ── DAMAGE NUMBERS ─────────────────────────────────── */
+  .damage-num {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 32px; font-weight: 900;
+    color: #ff3030;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px #ff8800;
+    pointer-events: none;
+    animation: dmgFloat 1.2s ease-out forwards;
+    z-index: 100;
+  }
+  @keyframes dmgFloat {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+    100% { opacity: 0; transform: translate(-50%, -180%) scale(1); }
+  }
+  .damage-num.heal { color: #4ade80; text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px #00ff88; }
+
+  /* ── CHALLENGE CARD ────────────────────────────────── */
+  .challenge-card {
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 20px;
+    padding: 18px 16px;
+    color: #2a2118;
+    box-shadow: 0 4px 30px rgba(106, 62, 176, 0.2);
+    border: 1px solid rgba(240, 208, 96, 0.3);
+  }
+
+  .challenge-mode {
+    text-align: center; font-size: 11px; font-weight: 800;
+    color: #6b3eb0; letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .speak-row { text-align: center; margin: 10px 0; }
+  .speak-btn {
+    width: 84px; height: 84px;
+    border-radius: 42px;
+    background: linear-gradient(135deg, #ba55d3, #6b3eb0);
+    border: 3px solid #f0d060;
+    font-size: 38px;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(186, 85, 211, 0.5);
+  }
+  .speak-btn:active { transform: scale(0.95); }
+  .speak-btn.speaking { animation: glow 0.8s infinite; }
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 4px 20px rgba(186, 85, 211, 0.5); }
+    50% { box-shadow: 0 4px 36px rgba(255, 215, 0, 0.8), 0 0 0 8px rgba(255, 215, 0, 0.15); }
+  }
+
+  .meaning {
+    text-align: center; margin-top: 6px;
+    font-size: 13px; color: #5a4a3c; line-height: 1.4;
+  }
+
+  /* ── Custom Display (替代 input，避免系统键盘候选词)─── */
+  .spell-display {
+    width: 100%;
+    min-height: 56px;
+    padding: 12px;
+    text-align: center;
+    border: 2px solid #d9cbbb;
+    border-radius: 12px;
+    background: #faf6f0;
+    color: #2a2118;
+    margin-top: 10px;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .spell-display .typed { color: #2a2118; }
+  .spell-display .cursor {
+    display: inline-block;
+    width: 2px; height: 28px;
+    background: #6b3eb0;
+    margin-left: 2px; vertical-align: middle;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+  .spell-display.correct { border-color: #4a7c59; background: #e8f5e9; color: #2d6a3f; animation: pop 0.3s; }
+  .spell-display.wrong { border-color: #c0392b; background: #fdecea; color: #c0392b; animation: shake 0.4s; }
+
+  /* ── Custom Keyboard (Magic Runes) ────────────────── */
+  .keyboard {
+    margin-top: 10px;
+    padding: 8px 6px 6px;
+    background: linear-gradient(180deg, rgba(106, 62, 176, 0.08), rgba(106, 62, 176, 0.15));
+    border-radius: 14px;
+    border: 1px solid rgba(106, 62, 176, 0.2);
+  }
+  .kb-row {
+    display: flex; gap: 4px; justify-content: center;
+    margin-bottom: 4px;
+  }
+  .kb-row:last-child { margin-bottom: 0; }
+  .key {
+    flex: 1;
+    min-width: 0;
+    max-width: 38px;
+    height: 44px;
+    background: linear-gradient(180deg, #fff, #f0e8da);
+    border: 1px solid #c9b8a0;
+    border-bottom: 3px solid #8d6b4c;
+    border-radius: 8px;
+    font-size: 16px; font-weight: 800;
+    color: #2a2118;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: lowercase;
+    padding: 0;
+    transition: transform 0.05s, box-shadow 0.05s;
+  }
+  .key:active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+    background: linear-gradient(180deg, #f0e8da, #e3d6bc);
+  }
+  .key.special {
+    max-width: 56px;
+    font-size: 14px;
+    background: linear-gradient(180deg, #6b3eb0, #4a2575);
+    color: #f0d060;
+    border-color: #4a2575;
+    border-bottom-color: #2a1851;
+  }
+  .key.special.go {
+    background: linear-gradient(180deg, #ff4444, #c01818);
+    color: #fff;
+    border-color: #c01818;
+    border-bottom-color: #800;
+    max-width: 76px;
+  }
+  .key.dim { opacity: 0.35; pointer-events: none; }
+
+  /* ── Original Input (保留，但隐藏 — 仅 fallback) ─── */
+  .spell-input {
+    width: 100%;
+    padding: 14px;
+    font-size: 22px; text-align: center;
+    border: 2px solid #d9cbbb;
+    border-radius: 12px;
+    background: #faf6f0;
+    font-family: inherit;
+    letter-spacing: 1px;
+    outline: none;
+    color: #2a2118;
+    margin-top: 10px;
+  }
+  .spell-input:focus { border-color: #6b3eb0; background: #fff; }
+  .spell-input.correct { border-color: #4a7c59; background: #e8f5e9; color: #2d6a3f; animation: pop 0.3s; }
+  .spell-input.wrong { border-color: #c0392b; background: #fdecea; color: #c0392b; animation: shake 0.4s; }
+  @keyframes pop { 0%,100%{transform:scale(1);} 50%{transform:scale(1.06);} }
+  @keyframes shake {
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-8px);}
+    40%{transform:translateX(8px);}
+    60%{transform:translateX(-5px);}
+    80%{transform:translateX(5px);}
+  }
+
+  /* Puzzle */
+  .puzzle-slots {
+    display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+    min-height: 56px; padding: 12px;
+    border: 2px dashed #d9cbbb; border-radius: 12px;
+    background: #faf6f0; margin: 10px 0;
+  }
+  .puzzle-slot {
+    min-width: 50px; padding: 8px 12px;
+    background: linear-gradient(135deg, #6b3eb0, #4a2575);
+    color: #f0d060;
+    border-radius: 10px;
+    font-size: 18px; font-weight: 700; cursor: pointer;
+  }
+  .puzzle-bank { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .puzzle-piece {
+    min-width: 50px; padding: 12px 14px;
+    background: #fff;
+    border: 2px solid #ba55d3;
+    color: #6b3eb0;
+    border-radius: 12px;
+    font-size: 18px; font-weight: 700; cursor: pointer;
+  }
+  .puzzle-piece:active { transform: scale(0.92); }
+  .puzzle-piece.used { opacity: 0.25; pointer-events: none; }
+
+  /* Trap */
+  .trap-word {
+    display: flex; gap: 3px; justify-content: center; flex-wrap: wrap;
+    font-size: 28px; font-weight: 700; color: #2a2118;
+    letter-spacing: 1px; padding: 16px 8px;
+  }
+  .trap-letter { min-width: 18px; text-align: center; }
+  .trap-blank {
+    display: inline-block;
+    width: 32px; height: 38px;
+    text-align: center;
+    border: 2px solid #c0392b; border-radius: 8px;
+    background: #fff;
+    font-size: 24px; font-weight: 700; color: #c0392b;
+    font-family: inherit; padding: 0; outline: none;
+  }
+  .trap-blank:focus { background: #fdecea; border-width: 3px; }
+  .trap-blank.correct { background: #e8f5e9; border-color: #4a7c59; color: #2d6a3f; }
+  .trap-blank.wrong { background: #fdecea; }
+
+  /* ── Action Buttons ────────────────── */
+  .actions { display: flex; gap: 10px; margin-top: 12px; }
+  .btn {
+    flex: 1; padding: 14px;
+    border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 900;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-attack {
+    background: linear-gradient(135deg, #ff4444, #c01818);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(255, 68, 68, 0.4);
+    border: 2px solid #ff8888;
+    letter-spacing: 1px;
+  }
+  .btn-attack:active { transform: scale(0.97); }
+  .btn-next {
+    background: linear-gradient(135deg, #ba55d3, #6b3eb0);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(186, 85, 211, 0.4);
+  }
+  .btn-secondary { background: #f0e8da; color: #6b3eb0; }
+  .btn:disabled { background: #d9cbbb !important; color: #8d6b4c !important; }
+
+  /* ── PLAYER STATUS BAR (Hearts) ───────────────────── */
+  .player-status {
+    background: rgba(15, 8, 34, 0.85);
+    border-radius: 16px;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid rgba(240, 208, 96, 0.3);
+  }
+  .hearts { display: flex; gap: 4px; flex: 1; }
+  .heart {
+    font-size: 28px;
+    transition: transform 0.3s, opacity 0.3s;
+  }
+  .heart.lost {
+    opacity: 0.2;
+    filter: grayscale(1);
+    animation: heartBreak 0.6s;
+  }
+  @keyframes heartBreak {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.4) rotate(-20deg); }
+    60% { transform: scale(0.3) rotate(40deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  .player-label { font-size: 11px; color: #b9adcc; font-weight: 800; letter-spacing: 1px; }
+
+  /* ── OVERLAY (Victory / Defeat / Intro) ───────────── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 250;
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .overlay.open { display: flex; }
+  .overlay-card {
+    max-width: 360px; width: 100%;
+    background: linear-gradient(135deg, #2a1851, #1a0f3a);
+    border: 2px solid #f0d060;
+    border-radius: 24px;
+    padding: 28px 22px;
+    text-align: center;
+    color: #fff;
+    box-shadow: 0 0 60px rgba(240, 208, 96, 0.4);
+  }
+  .ov-emoji { font-size: 78px; line-height: 1; }
+  .ov-title {
+    font-size: 32px; font-weight: 900;
+    margin-top: 12px;
+    background: linear-gradient(135deg, #ffd700, #ff7eb9);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+  }
+  .ov-msg { font-size: 14px; color: #b9adcc; margin-top: 10px; line-height: 1.5; }
+  .ov-rewards {
+    margin-top: 18px;
+    padding: 14px;
+    background: rgba(240, 208, 96, 0.1);
+    border-radius: 14px;
+    border: 1px solid rgba(240, 208, 96, 0.3);
+  }
+  .ov-reward {
+    font-size: 20px; font-weight: 900;
+    color: #ffd700;
+    margin: 4px 0;
+  }
+  .ov-btn {
+    width: 100%; margin-top: 20px;
+    padding: 14px;
+    background: linear-gradient(135deg, #ba55d3, #6b3eb0);
+    border: 2px solid #f0d060;
+    border-radius: 14px;
+    color: #fff;
+    font-size: 17px; font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(186, 85, 211, 0.4);
+  }
+
+  /* ── STATS PANEL ──────────────────────────── */
+  .stats-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 280;
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .stats-overlay.open { display: flex; }
+  .stats-card {
+    max-width: 500px; width: 100%;
+    background: linear-gradient(180deg, #2a1851, #1a0f3a);
+    border: 2px solid #f0d060;
+    border-radius: 20px;
+    padding: 18px;
+    color: #fff;
+    box-shadow: 0 0 60px rgba(240, 208, 96, 0.4);
+    margin-top: env(safe-area-inset-top);
+  }
+  .stats-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .stats-head h2 {
+    flex: 1; font-size: 18px; font-weight: 900;
+    color: #f0d060;
+  }
+  .stats-close {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff; font-size: 18px; cursor: pointer;
+  }
+  .stats-summary {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .stats-bar {
+    height: 14px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 7px; overflow: hidden;
+    margin-top: 8px;
+  }
+  .stats-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #ffd700);
+    transition: width 0.6s;
+  }
+  .stats-summary-text { font-size: 13px; color: #b9adcc; margin-top: 6px; }
+
+  .stats-section { margin-bottom: 14px; }
+  .stats-section h3 {
+    font-size: 13px; font-weight: 800;
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .stats-section.trouble h3 { color: #ff6b6b; }
+  .stats-section.progress h3 { color: #ffd700; }
+  .stats-section.mastered h3 { color: #4ade80; }
+  .stats-section.unseen h3 { color: #b9adcc; }
+
+  .stats-list {
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .stats-word-row {
+    display: flex; justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .stats-word-row:last-child { border-bottom: none; }
+  .stats-word-name { font-weight: 700; }
+  .stats-word-meta { color: #b9adcc; font-size: 12px; }
+  .stats-word-meta.bad { color: #ff8888; font-weight: 700; }
+  .stats-words-inline { color: #b9adcc; font-size: 12px; line-height: 1.6; }
+
+  .stats-action-btn {
+    width: 100%; margin-top: 8px;
+    padding: 12px;
+    background: linear-gradient(135deg, #ff4444, #c01818);
+    border: 2px solid #ff8888;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 15px; font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(255, 68, 68, 0.3);
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 300;
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 18px; padding: 22px;
+    max-width: 500px; width: 100%;
+    max-height: 80vh; display: flex; flex-direction: column; color: #2a2118;
+  }
+  .modal h2 { font-size: 18px; font-weight: 800; margin-bottom: 10px; color: #6b3eb0; }
+  .modal p { font-size: 13px; color: #5a4a3c; margin-bottom: 12px; line-height: 1.5; }
+  .modal textarea {
+    width: 100%; min-height: 200px; padding: 12px;
+    border: 1px solid #d9cbbb; border-radius: 10px;
+    font-family: inherit; font-size: 14px;
+    resize: vertical; outline: none; color: #2a2118;
+  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .modal-actions .btn { padding: 12px; font-size: 14px; }
+
+  /* Hide stuff during animations */
+  .hidden { visibility: hidden; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-mini">⚔️ Spelling Quest</div>
+  <div class="header-stats">
+    <span class="stat-pill stat-xp">⭐<span id="xp-num">0</span></span>
+    <span class="stat-pill stat-coin">🪙<span id="coin-num">0</span></span>
+  </div>
+  <button class="icon-btn" id="stats-btn">📊</button>
+  <button class="icon-btn" id="settings-btn">⚙</button>
+</header>
+
+<main id="main-area"></main>
+
+<div id="confetti-host"></div>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-card" id="overlay-card">
+    <!-- 动态渲染 -->
+  </div>
+</div>
+
+<div class="stats-overlay" id="stats-overlay">
+  <div class="stats-card" id="stats-card">
+    <!-- 动态渲染 -->
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <h2>📚 词表管理</h2>
+    <p>每行一个单词。粘贴学校的 spelling list 替换默认词。</p>
+    <textarea id="word-input" placeholder="February&#10;necessary&#10;definitely&#10;..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-cancel">取消</button>
+      <button class="btn btn-secondary" id="modal-reset">恢复默认</button>
+      <button class="btn btn-next" id="modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// MONSTERS
+// ═══════════════════════════════════════════════════════════════════════
+const MONSTERS = [
+  { id:"slime",    name:"Goopy",   emoji:"🟢", hp:3,  color:"#7ed957", intro:"Goop goop! Try to spell me!",       reward:5,  xp:15 },
+  { id:"bat",      name:"Batty",   emoji:"🦇", hp:4,  color:"#9d6bd1", intro:"Squeak! Show me your magic!",       reward:8,  xp:20 },
+  { id:"goblin",   name:"Grunk",   emoji:"👹", hp:5,  color:"#c44545", intro:"Hahaha! You can't spell me!",       reward:10, xp:25 },
+  { id:"spider",   name:"Spinny",  emoji:"🕷️", hp:5,  color:"#5a3a8e", intro:"Web of words! Bring it!",           reward:10, xp:25 },
+  { id:"ghost",    name:"Spooky",  emoji:"👻", hp:6,  color:"#cccfff", intro:"Boooo! Spell me away!",             reward:12, xp:30 },
+  { id:"skeleton", name:"Bones",   emoji:"💀", hp:6,  color:"#e0d4b0", intro:"Rattle rattle! Bring it on!",       reward:12, xp:30 },
+  { id:"zombie",   name:"Zomb",    emoji:"🧟", hp:7,  color:"#7c8a3e", intro:"Braaains... or words!",             reward:14, xp:35 },
+  { id:"octopus",  name:"Inky",    emoji:"🐙", hp:7,  color:"#cc4488", intro:"Eight arms, infinite spelling!",    reward:14, xp:35 },
+  { id:"witch",    name:"Witcha",  emoji:"🧙‍♀️", hp:8,  color:"#7d2bca", intro:"My spells beat yours!",             reward:16, xp:40 },
+  { id:"wolf",     name:"Howly",   emoji:"🐺", hp:8,  color:"#5a5a5a", intro:"AwoooOO! Word fight!",              reward:16, xp:40 },
+  { id:"vampire",  name:"Bitey",   emoji:"🧛", hp:9,  color:"#8b1a1a", intro:"I vant... to spell!",               reward:20, xp:50 },
+  { id:"alien",    name:"Zorg",    emoji:"👽", hp:9,  color:"#3ec1a8", intro:"Beep boop! Word battle!",           reward:20, xp:50 },
+  { id:"demon",    name:"Dem",     emoji:"😈", hp:10, color:"#a83232", intro:"Hellfire spelling!",                reward:25, xp:60 },
+  { id:"devil",    name:"Devy",    emoji:"👿", hp:11, color:"#9a1f00", intro:"You'll never beat me!",             reward:30, xp:75 },
+  { id:"dragon",   name:"DRAGO",   emoji:"🐉", hp:15, color:"#ff8800", intro:"⚡ I AM THE BOSS! Prove yourself!", reward:80, xp:200, boss:true },
+]
+
+// ═══════════════════════════════════════════════════════════════════════
+// WORDS
+// ═══════════════════════════════════════════════════════════════════════
+const DEFAULT_WORDS = [
+  { word:"February",     syllables:["Feb","ru","ar","y"],     stress:0, traps:[3],         meaning:"the 2nd month",                          example:"My birthday is in February." },
+  { word:"necessary",    syllables:["nec","es","sar","y"],    stress:0, traps:[2,4,5],     meaning:"needed; required",                       example:"Sleep is necessary for health." },
+  { word:"definitely",   syllables:["def","i","nite","ly"],   stress:0, traps:[3,5],       meaning:"for sure; without doubt",                example:"I will definitely come." },
+  { word:"separate",     syllables:["sep","a","rate"],        stress:0, traps:[3],         meaning:"to divide; apart",                       example:"Separate the recycling." },
+  { word:"restaurant",   syllables:["res","tau","rant"],      stress:0, traps:[3,4,5],     meaning:"a place to eat",                         example:"We ate at a Mexican restaurant." },
+  { word:"beautiful",    syllables:["beau","ti","ful"],       stress:0, traps:[1,2,3],     meaning:"very pretty",                            example:"That's a beautiful painting." },
+  { word:"government",   syllables:["gov","ern","ment"],      stress:0, traps:[3,4],       meaning:"the people who run a country",           example:"The government makes laws." },
+  { word:"environment",  syllables:["en","vi","ron","ment"],  stress:1, traps:[3,5,8],     meaning:"the natural world",                      example:"We must protect the environment." },
+  { word:"embarrass",    syllables:["em","bar","rass"],       stress:1, traps:[3,4,6,7],   meaning:"to feel shy or ashamed",                 example:"Don't embarrass me!" },
+  { word:"similar",      syllables:["sim","i","lar"],         stress:0, traps:[3,5,6],     meaning:"alike; almost the same",                 example:"Their backpacks are similar." },
+  { word:"immediately",  syllables:["im","me","di","ate","ly"],stress:1,traps:[1,2],       meaning:"right now",                              example:"Call me immediately if there's a problem." },
+  { word:"especially",   syllables:["es","pe","cial","ly"],   stress:1, traps:[3],         meaning:"more than other things",                 example:"I love fruit, especially mangos." },
+  { word:"calendar",     syllables:["cal","en","dar"],        stress:0, traps:[3,7],       meaning:"chart of days/months",                   example:"Check the calendar for the date." },
+  { word:"vegetable",    syllables:["veg","e","ta","ble"],    stress:0, traps:[3],         meaning:"a plant we eat",                         example:"Eat your vegetables." },
+  { word:"character",    syllables:["char","ac","ter"],       stress:0, traps:[1],         meaning:"a person in a story",                    example:"Harry Potter is the main character." },
+  { word:"exercise",     syllables:["ex","er","cise"],        stress:0, traps:[3,4,5],     meaning:"physical activity",                      example:"Exercise keeps you healthy." },
+  { word:"accommodate",  syllables:["ac","com","mo","date"],  stress:1, traps:[1,3,4],     meaning:"to make room for",                       example:"The hotel can accommodate 200 guests." },
+  { word:"occasionally", syllables:["oc","ca","sion","al","ly"],stress:1,traps:[1,7],      meaning:"sometimes",                              example:"I occasionally eat dessert." },
+  { word:"occurrence",   syllables:["oc","cur","rence"],      stress:1, traps:[1,3,4],     meaning:"a thing that happens",                   example:"Earthquakes are a rare occurrence here." },
+  { word:"interesting",  syllables:["in","ter","est","ing"],  stress:0, traps:[3,4],       meaning:"holding your attention",                 example:"That book is really interesting." },
+  { word:"different",    syllables:["dif","fer","ent"],       stress:0, traps:[3,5],       meaning:"not the same",                           example:"We have different opinions." },
+  { word:"probably",     syllables:["prob","a","bly"],        stress:0, traps:[4],         meaning:"most likely",                            example:"It will probably rain." },
+  { word:"usually",      syllables:["u","su","al","ly"],      stress:0, traps:[3,4],       meaning:"most of the time",                       example:"I usually walk to school." },
+  { word:"temperature",  syllables:["tem","per","a","ture"],  stress:0, traps:[4,6],       meaning:"how hot or cold",                        example:"What's the temperature today?" },
+  { word:"equipment",    syllables:["e","quip","ment"],       stress:1, traps:[2],         meaning:"tools or gear",                          example:"We need the right equipment." },
+  { word:"attention",    syllables:["at","ten","tion"],       stress:1, traps:[1],         meaning:"focus or notice",                        example:"Pay attention in class." },
+  { word:"position",     syllables:["po","si","tion"],        stress:1, traps:[],          meaning:"place or location",                      example:"What position do you play?" },
+  { word:"comfortable",  syllables:["com","fort","a","ble"],  stress:0, traps:[7],         meaning:"feeling at ease",                        example:"This chair is comfortable." },
+  { word:"emergency",    syllables:["e","mer","gen","cy"],    stress:1, traps:[],          meaning:"a sudden serious event",                 example:"Call 911 in an emergency." },
+  { word:"president",    syllables:["pres","i","dent"],       stress:0, traps:[4],         meaning:"the leader of a country",                example:"The president lives in the White House." },
+  { word:"tomorrow",     syllables:["to","mor","row"],        stress:1, traps:[1,3,4],     meaning:"the day after today",                    example:"See you tomorrow!" },
+  { word:"opposite",     syllables:["op","po","site"],        stress:0, traps:[1,2,5],     meaning:"completely different",                   example:"Hot is the opposite of cold." },
+  { word:"furniture",    syllables:["fur","ni","ture"],       stress:0, traps:[4,6],       meaning:"chairs, tables, beds",                   example:"We bought new furniture." },
+  { word:"dictionary",   syllables:["dic","tion","ar","y"],   stress:0, traps:[5,8],       meaning:"book of word meanings",                  example:"Look it up in the dictionary." },
+  { word:"interview",    syllables:["in","ter","view"],       stress:0, traps:[],          meaning:"a meeting to ask questions",             example:"I have a job interview." },
+  { word:"introduce",    syllables:["in","tro","duce"],       stress:2, traps:[6,7],       meaning:"to present someone for the first time",  example:"Let me introduce my friend." },
+  { word:"understand",   syllables:["un","der","stand"],      stress:2, traps:[],          meaning:"to get the meaning",                     example:"I understand the directions." },
+  { word:"communicate",  syllables:["com","mu","ni","cate"],  stress:1, traps:[1,2],       meaning:"to share information",                   example:"We communicate by text." },
+  { word:"experience",   syllables:["ex","pe","ri","ence"],   stress:1, traps:[5,7,8],     meaning:"something you've done",                  example:"Tell me about your experience." },
+  { word:"continue",     syllables:["con","tin","ue"],        stress:1, traps:[6,7],       meaning:"to keep going",                          example:"Please continue your story." },
+]
+
+const PLAYER_HEARTS = 3
+const STORAGE_KEY = "spelling-quest-v3"
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+let state = {
+  words: [...DEFAULT_WORDS],
+  progress: {},                       // 词的掌握情况
+  xp: 0,
+  coins: 0,
+  questIndex: 0,                      // 当前打第几只怪 (cycles)
+  defeatedCount: 0,                   // 累计打死多少怪
+  defeatedIds: [],                    // 打死过的怪 id（去重）
+  // 战斗内
+  battle: null,                       // { monsterIdx, monsterHp, playerHearts, wordsUsed:[] }
+  pendingMode: null,                  // 当前题目用哪个模式
+  currentWordIdx: null,
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    words: state.words,
+    progress: state.progress,
+    xp: state.xp,
+    coins: state.coins,
+    questIndex: state.questIndex,
+    defeatedCount: state.defeatedCount,
+    defeatedIds: state.defeatedIds,
+  }))
+}
+
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (!raw) return
+  try {
+    const d = JSON.parse(raw)
+    if (Array.isArray(d.words)) state.words = d.words
+    if (d.progress) state.progress = d.progress
+    if (typeof d.xp === "number") state.xp = d.xp
+    if (typeof d.coins === "number") state.coins = d.coins
+    if (typeof d.questIndex === "number") state.questIndex = d.questIndex
+    if (typeof d.defeatedCount === "number") state.defeatedCount = d.defeatedCount
+    if (Array.isArray(d.defeatedIds)) state.defeatedIds = d.defeatedIds
+  } catch {}
+}
+
+function getProgress(idx) {
+  if (!state.progress[idx])
+    state.progress[idx] = {
+      correct: 0, wrong: 0, lastSeen: 0, mastered: false,
+      consecutiveCorrect: 0,
+      firstCorrect: 0,    // 第一次拼对的时间戳（用于判定"是否经过时间检验"）
+    }
+  return state.progress[idx]
+}
+
+// 真正掌握的标准（科学版）:
+//  ① 至少答对 2 次
+//  ② 连续答对 2 次（最近 2 次都对）
+//  ③ 第一次答对到现在 ≥ 20 分钟（保证是"过段时间还记得"而非"刚学的肌肉记忆"）
+const MASTERY_TIME_GAP_MS = 20 * 60 * 1000
+function checkMastered(p) {
+  if (p.correct < 2) return false
+  if (p.consecutiveCorrect < 2) return false
+  if (!p.firstCorrect) return false
+  if (Date.now() - p.firstCorrect < MASTERY_TIME_GAP_MS) return false
+  return true
+}
+
+function pickNextWord(excludeIds = []) {
+  const items = state.words.map((w, idx) => ({ idx, p: getProgress(idx) }))
+                          .filter((it) => !excludeIds.includes(it.idx))
+  if (items.length === 0) return Math.floor(Math.random() * state.words.length)
+
+  // 分桶
+  const trouble   = items.filter((it) => it.p.wrong > 0 && !it.p.mastered)
+                         .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
+  const unseen    = items.filter((it) => it.p.correct === 0 && it.p.wrong === 0)
+  const inProg    = items.filter((it) => it.p.correct > 0 && !it.p.mastered && it.p.wrong === 0)
+                         .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
+  const mastered  = items.filter((it) => it.p.mastered)
+                         .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
+
+  // 权重抽样: 35% 错词, 40% 新词, 20% 学习中, 5% 已掌握（防遗忘）
+  // 关键: 即使有大量错词，每次也保证 40% 概率出新词
+  const r = Math.random()
+  let pool = null
+  if (r < 0.35 && trouble.length > 0)        pool = trouble
+  else if (r < 0.75 && unseen.length > 0)    pool = unseen
+  else if (r < 0.95 && inProg.length > 0)    pool = inProg
+  else if (mastered.length > 0)              pool = mastered
+
+  // Fallback: 按优先级降级
+  if (!pool || pool.length === 0) {
+    pool = unseen.length    > 0 ? unseen
+         : trouble.length   > 0 ? trouble
+         : inProg.length    > 0 ? inProg
+         : mastered.length  > 0 ? mastered
+         : items
+  }
+  const top = pool.slice(0, Math.min(3, pool.length))
+  return top[Math.floor(Math.random() * top.length)].idx
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SOUND (Web Audio API)
+// ═══════════════════════════════════════════════════════════════════════
+let audioCtx = null
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  return audioCtx
+}
+function playTone(freq, dur, type = "sine", gain = 0.15) {
+  try {
+    const ctx = getCtx()
+    const osc = ctx.createOscillator()
+    const g = ctx.createGain()
+    osc.type = type
+    osc.frequency.setValueAtTime(freq, ctx.currentTime)
+    g.gain.setValueAtTime(gain, ctx.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur)
+    osc.connect(g); g.connect(ctx.destination)
+    osc.start(); osc.stop(ctx.currentTime + dur)
+  } catch {}
+}
+function playSound(kind) {
+  if (kind === "attack") {
+    // 出招 + 命中
+    playTone(880, 0.05, "square", 0.1)
+    setTimeout(() => playTone(200, 0.15, "sawtooth", 0.18), 60)
+  } else if (kind === "hurt") {
+    playTone(120, 0.3, "sawtooth", 0.15)
+  } else if (kind === "defeat-monster") {
+    [523, 659, 784, 1047, 1319].forEach((f, i) =>
+      setTimeout(() => playTone(f, 0.15, "triangle", 0.14), i * 100))
+  } else if (kind === "battle-start") {
+    [261, 196, 261, 392].forEach((f, i) =>
+      setTimeout(() => playTone(f, 0.2, "triangle", 0.12), i * 150))
+  } else if (kind === "defeat-player") {
+    [400, 300, 200].forEach((f, i) =>
+      setTimeout(() => playTone(f, 0.3, "sawtooth", 0.12), i * 200))
+  } else if (kind === "boss") {
+    [80, 100, 60, 80, 100].forEach((f, i) =>
+      setTimeout(() => playTone(f, 0.3, "sawtooth", 0.18), i * 150))
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CONFETTI
+// ═══════════════════════════════════════════════════════════════════════
+function burstConfetti(x, y, count = 20, colors) {
+  const host = document.getElementById("confetti-host")
+  const palette = colors || ["#ffd700","#ff7eb9","#ba55d3","#6b3eb0","#ff6b00","#4a7c59"]
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement("div")
+    p.style.cssText = `
+      position:fixed;width:8px;height:8px;border-radius:2px;
+      left:${x}px;top:${y}px;background:${palette[i % palette.length]};
+      pointer-events:none;z-index:200;opacity:0;
+    `
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5
+    const dist = 60 + Math.random() * 120
+    p.style.transition = "transform 1.4s ease-out, opacity 1.4s ease-out"
+    host.appendChild(p)
+    requestAnimationFrame(() => {
+      p.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist+50}px) rotate(${Math.random()*720-360}deg)`
+      p.style.opacity = "1"
+      setTimeout(() => { p.style.opacity = "0" }, 700)
+    })
+    setTimeout(() => p.remove(), 1500)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TTS
+// ═══════════════════════════════════════════════════════════════════════
+let preferredVoice = null
+function pickVoice() {
+  const voices = speechSynthesis.getVoices()
+  const priority = ["Samantha", "Allison", "Ava", "Susan", "Karen", "Google US English"]
+  for (const name of priority) {
+    const v = voices.find((vv) => vv.name.includes(name) && vv.lang.startsWith("en"))
+    if (v) return v
+  }
+  return voices.find((v) => v.lang === "en-US") || voices.find((v) => v.lang.startsWith("en")) || null
+}
+speechSynthesis.addEventListener("voiceschanged", () => { preferredVoice = pickVoice() })
+setTimeout(() => { if (!preferredVoice) preferredVoice = pickVoice() }, 500)
+
+function speak(text, opts = {}) {
+  speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(text)
+  if (preferredVoice) u.voice = preferredVoice
+  u.rate = opts.rate || 0.85
+  u.pitch = 1; u.lang = "en-US"
+  if (opts.onstart) u.onstart = opts.onstart
+  if (opts.onend) u.onend = opts.onend
+  speechSynthesis.speak(u)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HEADER UPDATE
+// ═══════════════════════════════════════════════════════════════════════
+function updateHeader() {
+  document.getElementById("xp-num").textContent = state.xp
+  document.getElementById("coin-num").textContent = state.coins
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BATTLE: START
+// ═══════════════════════════════════════════════════════════════════════
+function startBattle() {
+  const monster = MONSTERS[state.questIndex % MONSTERS.length]
+  state.battle = {
+    monsterIdx: state.questIndex % MONSTERS.length,
+    monster: { ...monster },
+    monsterHp: monster.hp,
+    monsterHpMax: monster.hp,
+    playerHearts: PLAYER_HEARTS,
+    wordsUsed: [],
+  }
+  state.pendingMode = pickRandomMode()
+  state.currentWordIdx = pickNextWord([])
+  playSound(monster.boss ? "boss" : "battle-start")
+  renderBattle()
+}
+
+function pickRandomMode() {
+  return ["listen", "puzzle", "trap"][Math.floor(Math.random() * 3)]
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BATTLE: RENDER
+// ═══════════════════════════════════════════════════════════════════════
+const main = document.getElementById("main-area")
+
+function renderBattle() {
+  const b = state.battle
+  const m = b.monster
+  const word = state.words[state.currentWordIdx]
+  const hpPct = (b.monsterHp / b.monsterHpMax) * 100
+
+  // 怪物图片或 emoji
+  const monsterArt = `<img src="monsters/${m.id}.png" class="monster-art" id="monster-art"
+                       onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'monster-art',id:'monster-art',textContent:'${m.emoji}'}))">`
+
+  main.innerHTML = `
+    <div class="battle-info">
+      ⚔️ Battle #${state.defeatedCount + 1} ${m.boss ? "· 🔥 BOSS FIGHT 🔥" : ""}
+    </div>
+
+    <div class="monster-card" style="--monster-color:${m.color};">
+      <div style="position:relative;">
+        ${monsterArt}
+        <div id="damage-container"></div>
+      </div>
+      <div class="monster-name">${m.name}</div>
+      <div class="monster-title">${m.boss ? "★ ULTIMATE BOSS ★" : m.id.toUpperCase()}</div>
+      <div class="hp-row">
+        <span class="hp-label">HP</span>
+        <div class="hp-bar"><div class="hp-fill" id="hp-fill" style="width:${hpPct}%"></div></div>
+        <span class="hp-num" id="hp-num">${b.monsterHp}/${b.monsterHpMax}</span>
+      </div>
+      <div class="monster-intro">"${m.intro}"</div>
+    </div>
+
+    <div id="challenge-area"></div>
+
+    <div class="player-status">
+      <span class="player-label">YOU</span>
+      <div class="hearts" id="hearts">
+        ${Array(PLAYER_HEARTS).fill(0).map((_,i) =>
+          `<span class="heart ${i < (PLAYER_HEARTS - b.playerHearts) ? "lost" : ""}">❤️</span>`
+        ).join("")}
+      </div>
+    </div>
+  `
+
+  renderChallenge()
+}
+
+function renderChallenge() {
+  const mode = state.pendingMode
+  if (mode === "listen") renderListenChallenge()
+  else if (mode === "puzzle") renderPuzzleChallenge()
+  else if (mode === "trap") renderTrapChallenge()
+}
+
+// ─── Custom Keyboard 工具 ───────────────────────────
+function buildKeyboardHtml(opts = {}) {
+  // 3 行布局 - 类 QWERTY 但是按字母顺序更适合儿童
+  const rows = [
+    "qwertyuiop",
+    "asdfghjkl",
+    "zxcvbnm",
+  ]
+  const showGo = opts.showGo !== false
+  return `
+    <div class="keyboard" id="kb">
+      ${rows.map((row, ri) => `
+        <div class="kb-row">
+          ${row.split("").map((l) => `<button class="key" data-l="${l}">${l}</button>`).join("")}
+          ${ri === 2 ? `<button class="key special" data-act="back">⌫</button>` : ""}
+        </div>
+      `).join("")}
+      ${showGo ? `<div class="kb-row">
+        <button class="key special go" data-act="go" style="max-width:120px;">⚔️ ATTACK</button>
+      </div>` : ""}
+    </div>
+  `
+}
+
+// 给键盘绑定事件
+function wireKeyboard(onLetter, onBack, onGo) {
+  const kb = document.getElementById("kb")
+  if (!kb) return
+  kb.querySelectorAll(".key").forEach((k) => {
+    k.onclick = (e) => {
+      e.preventDefault()
+      const l = k.dataset.l
+      const act = k.dataset.act
+      if (l) onLetter && onLetter(l)
+      else if (act === "back") onBack && onBack()
+      else if (act === "go") onGo && onGo()
+    }
+  })
+}
+
+// 渲染自定义输入框
+function renderSpellDisplay(value) {
+  return `<div class="spell-display" id="spell-display"><span class="typed">${value || ""}</span><span class="cursor"></span></div>`
+}
+
+// ─── CHALLENGE: LISTEN ────────────────────────────
+function renderListenChallenge() {
+  const word = state.words[state.currentWordIdx]
+  const area = document.getElementById("challenge-area")
+  area.innerHTML = `
+    <div class="challenge-card">
+      <div class="challenge-mode">🎧 LISTEN & SPELL</div>
+      <div class="speak-row">
+        <button class="speak-btn" id="speak">🔊</button>
+      </div>
+      <div class="meaning">${word.meaning}</div>
+      ${renderSpellDisplay("")}
+      <div class="actions">
+        <button class="btn btn-secondary" id="hear-again">🔊 再听</button>
+      </div>
+      ${buildKeyboardHtml()}
+    </div>
+  `
+  const speakBtn = document.getElementById("speak")
+  const display = document.getElementById("spell-display")
+
+  let attempt = ""
+  let locked = false
+
+  const refreshDisplay = () => {
+    display.innerHTML = `<span class="typed">${attempt}</span>${locked ? "" : `<span class="cursor"></span>`}`
+  }
+
+  const playWord = () => {
+    speakBtn.classList.add("speaking")
+    speak(word.word, { onend: () => speakBtn.classList.remove("speaking") })
+  }
+  speakBtn.onclick = playWord
+  document.getElementById("hear-again").onclick = playWord
+  setTimeout(playWord, 200)
+
+  const doAttack = () => {
+    if (locked || !attempt) return
+    locked = true
+    const correct = attempt.toLowerCase() === word.word.toLowerCase()
+    display.classList.add(correct ? "correct" : "wrong")
+    refreshDisplay()
+    // 锁住键盘
+    document.querySelectorAll("#kb .key").forEach((k) => k.classList.add("dim"))
+    if (correct) onAttackSuccess()
+    else onAttackFail(word.word)
+  }
+
+  wireKeyboard(
+    (l) => { if (locked) return; if (attempt.length < 30) attempt += l; refreshDisplay() },
+    () => { if (locked) return; attempt = attempt.slice(0, -1); refreshDisplay() },
+    doAttack,
+  )
+}
+
+// ─── CHALLENGE: PUZZLE ────────────────────────────
+function renderPuzzleChallenge() {
+  const word = state.words[state.currentWordIdx]
+  const area = document.getElementById("challenge-area")
+
+  const shuffled = [...word.syllables].map((s, i) => ({ s, originalIdx: i }))
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  if (shuffled.length > 1 && shuffled.every((x, i) => x.originalIdx === i))
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]]
+
+  area.innerHTML = `
+    <div class="challenge-card">
+      <div class="challenge-mode">🧩 PUZZLE THE WORD</div>
+      <div class="speak-row">
+        <button class="speak-btn" id="speak">🔊</button>
+      </div>
+      <div class="meaning">${word.meaning}</div>
+      <div class="puzzle-slots" id="slots"></div>
+      <div class="puzzle-bank" id="bank"></div>
+      <div class="actions">
+        <button class="btn btn-secondary" id="clear-btn">清空</button>
+        <button class="btn btn-attack" id="attack-btn" disabled>⚔️ ATTACK</button>
+      </div>
+    </div>
+  `
+
+  const slotsEl = document.getElementById("slots")
+  const bankEl = document.getElementById("bank")
+  const attackBtn = document.getElementById("attack-btn")
+  const speakBtn = document.getElementById("speak")
+  let placed = []
+
+  function renderPuzzle() {
+    slotsEl.innerHTML = placed.length === 0
+      ? `<div style="color:#bfad9c;align-self:center;font-size:13px;">点击下方音节拼成单词</div>`
+      : placed.map((p, i) => `<div class="puzzle-slot" data-slot-idx="${i}">${p.s}</div>`).join("")
+    bankEl.innerHTML = shuffled.map((piece, i) => {
+      const used = placed.some((p) => p.bankIdx === i)
+      return `<div class="puzzle-piece ${used?"used":""}" data-bank-idx="${i}">${piece.s}</div>`
+    }).join("")
+    slotsEl.querySelectorAll(".puzzle-slot").forEach((el) => {
+      el.onclick = () => { placed.splice(+el.dataset.slotIdx, 1); renderPuzzle() }
+    })
+    bankEl.querySelectorAll(".puzzle-piece:not(.used)").forEach((el) => {
+      el.onclick = () => { placed.push({ ...shuffled[+el.dataset.bankIdx], bankIdx: +el.dataset.bankIdx }); renderPuzzle() }
+    })
+    attackBtn.disabled = placed.length !== word.syllables.length
+  }
+  renderPuzzle()
+
+  const playWord = () => {
+    speakBtn.classList.add("speaking")
+    speak(word.word, { onend: () => speakBtn.classList.remove("speaking") })
+  }
+  speakBtn.onclick = playWord
+  setTimeout(playWord, 200)
+  document.getElementById("clear-btn").onclick = () => { placed = []; renderPuzzle() }
+
+  attackBtn.onclick = () => {
+    attackBtn.disabled = true
+    const correct = placed.every((p, i) => p.originalIdx === i)
+    if (correct) onAttackSuccess()
+    else onAttackFail(word.word)
+  }
+}
+
+// ─── CHALLENGE: TRAP ──────────────────────────────
+function renderTrapChallenge() {
+  const word = state.words[state.currentWordIdx]
+  const area = document.getElementById("challenge-area")
+  const trapsToUse = (word.traps && word.traps.length > 0) ? word.traps : findAutoTraps(word)
+
+  area.innerHTML = `
+    <div class="challenge-card">
+      <div class="challenge-mode">⚠️ FILL THE TRAPS</div>
+      <div class="speak-row">
+        <button class="speak-btn" id="speak">🔊</button>
+      </div>
+      <div class="meaning">${word.meaning}</div>
+      <div class="trap-word" id="trap-word"></div>
+      <div class="actions">
+        <button class="btn btn-secondary" id="hear-again">🔊 听</button>
+      </div>
+      ${buildKeyboardHtml()}
+    </div>
+  `
+  const wordEl = document.getElementById("trap-word")
+  const speakBtn = document.getElementById("speak")
+
+  // 用 span 替代 input，避免系统键盘
+  wordEl.innerHTML = word.word.split("").map((c, i) =>
+    trapsToUse.includes(i)
+      ? `<span class="trap-blank" data-trap-idx="${i}" data-pos="${trapsToUse.indexOf(i)}"></span>`
+      : `<span class="trap-letter">${c}</span>`
+  ).join("")
+
+  const blanks = [...wordEl.querySelectorAll(".trap-blank")]
+  // 给 trap-blank 加点击聚焦视觉
+  blanks.forEach((b) => { b.style.cursor = "pointer"; b.contentEditable = false })
+
+  let currentBlank = 0
+  let answers = blanks.map(() => "")
+  let locked = false
+
+  const refreshBlanks = () => {
+    blanks.forEach((b, i) => {
+      b.textContent = answers[i] || ""
+      b.classList.remove("active")
+      if (!locked && i === currentBlank) b.classList.add("active")
+    })
+  }
+  // active 高亮样式（动态加点 CSS）
+  if (!document.getElementById("trap-active-style")) {
+    const s = document.createElement("style")
+    s.id = "trap-active-style"
+    s.textContent = `.trap-blank.active { background:#fff3cd !important; border-color:#ff8800 !important; box-shadow:0 0 0 3px rgba(255,136,0,0.3); }`
+    document.head.appendChild(s)
+  }
+  refreshBlanks()
+
+  const playWord = () => {
+    speakBtn.classList.add("speaking")
+    speak(word.word, { onend: () => speakBtn.classList.remove("speaking") })
+  }
+  speakBtn.onclick = playWord
+  document.getElementById("hear-again").onclick = playWord
+  setTimeout(playWord, 200)
+
+  blanks.forEach((b, i) => { b.onclick = () => { if (!locked) { currentBlank = i; refreshBlanks() } } })
+
+  const doSubmit = () => {
+    if (locked) return
+    if (answers.some((a) => !a)) {
+      // 还有空白没填，跳到第一个空
+      const firstEmpty = answers.findIndex((a) => !a)
+      if (firstEmpty >= 0) { currentBlank = firstEmpty; refreshBlanks() }
+      return
+    }
+    locked = true
+    let allCorrect = true
+    blanks.forEach((b, i) => {
+      const idx = +b.dataset.trapIdx
+      const expected = word.word[idx].toLowerCase()
+      if (answers[i].toLowerCase() === expected) b.classList.add("correct")
+      else { b.classList.add("wrong"); b.textContent = word.word[idx]; allCorrect = false }
+    })
+    document.querySelectorAll("#kb .key").forEach((k) => k.classList.add("dim"))
+    if (allCorrect) onAttackSuccess()
+    else onAttackFail(word.word)
+  }
+
+  wireKeyboard(
+    (l) => {
+      if (locked) return
+      answers[currentBlank] = l
+      if (currentBlank < blanks.length - 1) currentBlank++
+      refreshBlanks()
+    },
+    () => {
+      if (locked) return
+      if (answers[currentBlank]) {
+        answers[currentBlank] = ""
+      } else if (currentBlank > 0) {
+        currentBlank--
+        answers[currentBlank] = ""
+      }
+      refreshBlanks()
+    },
+    doSubmit,
+  )
+}
+
+function findAutoTraps(word) {
+  const traps = []
+  for (let i = 0; i < word.word.length; i++) if ("aeiouAEIOU".includes(word.word[i])) traps.push(i)
+  return traps.slice(0, Math.min(5, Math.max(2, traps.length)))
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ATTACK RESOLUTION
+// ═══════════════════════════════════════════════════════════════════════
+function onAttackSuccess() {
+  const b = state.battle
+  playSound("attack")
+  const art = document.getElementById("monster-art")
+  art.classList.add("hit")
+  setTimeout(() => art.classList.remove("hit"), 500)
+  showDamage("-1", false)
+  b.monsterHp = Math.max(0, b.monsterHp - 1)
+  const hpPct = (b.monsterHp / b.monsterHpMax) * 100
+  document.getElementById("hp-fill").style.width = hpPct + "%"
+  document.getElementById("hp-num").textContent = `${b.monsterHp}/${b.monsterHpMax}`
+
+  // 记录词进度
+  const p = getProgress(state.currentWordIdx)
+  const wasMastered = p.mastered
+  p.correct++
+  p.lastSeen = Date.now()
+  p.consecutiveCorrect = (p.consecutiveCorrect || 0) + 1
+  if (!p.firstCorrect) p.firstCorrect = Date.now()
+  p.mastered = checkMastered(p)
+  b.wordsUsed.push(state.currentWordIdx)
+  saveState()
+
+  // 刚刚达成 mastered 的特殊反馈
+  if (!wasMastered && p.mastered) {
+    state.xp += 20
+    state.coins += 3
+    updateHeader()
+    setTimeout(() => {
+      burstConfetti(window.innerWidth/2, 250, 35, ["#ffd700","#4ade80","#ffd700"])
+      showDamage("✨ MASTERED!", false)
+    }, 200)
+  }
+
+  setTimeout(() => {
+    if (b.monsterHp <= 0) {
+      onMonsterDefeated()
+    } else {
+      nextChallenge()
+    }
+  }, 700)
+}
+
+function onAttackFail(correctWord) {
+  const b = state.battle
+  playSound("hurt")
+  // 玩家受伤
+  b.playerHearts--
+  const hearts = [...document.getElementById("hearts").children]
+  if (hearts[b.playerHearts]) hearts[b.playerHearts].classList.add("lost")
+
+  // 记录错的
+  const p = getProgress(state.currentWordIdx)
+  p.wrong++
+  p.lastSeen = Date.now()
+  p.consecutiveCorrect = 0   // 重置连击
+  p.mastered = false
+  b.wordsUsed.push(state.currentWordIdx)
+  saveState()
+
+  // 短暂显示正确拼写
+  const fbDiv = document.createElement("div")
+  fbDiv.style.cssText = "background:#fdecea;color:#c0392b;padding:10px;border-radius:10px;margin-top:10px;text-align:center;font-weight:800;"
+  fbDiv.innerHTML = `正确: <span style="font-size:18px;">${correctWord}</span>`
+  document.getElementById("challenge-area").querySelector(".challenge-card").appendChild(fbDiv)
+
+  setTimeout(() => {
+    if (b.playerHearts <= 0) {
+      onPlayerDefeated()
+    } else {
+      nextChallenge()
+    }
+  }, 1500)
+}
+
+function nextChallenge() {
+  state.pendingMode = pickRandomMode()
+  if (troubleOnlyMode && troubleWordPool && troubleWordPool.length > 0) {
+    const recentExclude = state.battle.wordsUsed.slice(-Math.min(3, troubleWordPool.length - 1))
+    const pool = troubleWordPool.filter((idx) => !recentExclude.includes(idx))
+    state.currentWordIdx = pool.length > 0
+      ? pool[Math.floor(Math.random() * pool.length)]
+      : troubleWordPool[Math.floor(Math.random() * troubleWordPool.length)]
+  } else {
+    state.currentWordIdx = pickNextWord(state.battle.wordsUsed.slice(-3))
+  }
+  renderChallenge()
+}
+
+function showDamage(text, isHeal) {
+  const container = document.getElementById("damage-container")
+  if (!container) return
+  const el = document.createElement("div")
+  el.className = "damage-num" + (isHeal ? " heal" : "")
+  el.textContent = text
+  container.appendChild(el)
+  setTimeout(() => el.remove(), 1200)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// VICTORY / DEFEAT
+// ═══════════════════════════════════════════════════════════════════════
+function onMonsterDefeated() {
+  const m = state.battle.monster
+  playSound("defeat-monster")
+  const art = document.getElementById("monster-art")
+  art.classList.remove("hit")
+  art.classList.add("defeated")
+  setTimeout(() => burstConfetti(window.innerWidth/2, 200, 50), 200)
+
+  // 加奖励
+  state.xp += m.xp
+  state.coins += m.reward
+  state.defeatedCount++
+  if (!state.defeatedIds.includes(m.id)) state.defeatedIds.push(m.id)
+  // 错词战斗不推进正式进度
+  if (!troubleOnlyMode) state.questIndex++
+  saveState()
+  updateHeader()
+
+  const wasTrouble = troubleOnlyMode
+  troubleOnlyMode = false
+  troubleWordPool = null
+
+  setTimeout(() => {
+    showOverlay({
+      emoji: m.boss ? "👑" : "🏆",
+      title: m.boss ? (wasTrouble ? "ERRORS CLEARED!" : "BOSS DEFEATED!") : "VICTORY!",
+      msg: wasTrouble
+        ? `🎯 你把错词都打回去了！<br>继续挑战常规怪物 →`
+        : `你打败了 <b>${m.name}</b>！`,
+      rewards: [`+${m.xp} ⭐ XP`, `+${m.reward} 🪙 金币`],
+      btnText: "下一关 →",
+      onClick: () => { hideOverlay(); startBattle() },
+    })
+  }, 1400)
+}
+
+function onPlayerDefeated() {
+  playSound("defeat-player")
+  setTimeout(() => {
+    showOverlay({
+      emoji: "💀",
+      title: "Quest Failed",
+      msg: `${state.battle.monster.name} 赢了这一回合...<br>但每次失败都让你更强！`,
+      rewards: [],
+      btnText: "再战一次 🪄",
+      onClick: () => { hideOverlay(); startBattle() },
+    })
+  }, 1200)
+}
+
+function showOverlay({ emoji, title, msg, rewards, btnText, onClick }) {
+  const card = document.getElementById("overlay-card")
+  card.innerHTML = `
+    <div class="ov-emoji">${emoji}</div>
+    <div class="ov-title">${title}</div>
+    <div class="ov-msg">${msg}</div>
+    ${rewards && rewards.length ? `<div class="ov-rewards">${rewards.map((r) => `<div class="ov-reward">${r}</div>`).join("")}</div>` : ""}
+    <button class="ov-btn" id="ov-btn">${btnText}</button>
+  `
+  document.getElementById("overlay").classList.add("open")
+  document.getElementById("ov-btn").onclick = onClick
+}
+function hideOverlay() {
+  document.getElementById("overlay").classList.remove("open")
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATS PANEL — 进度 + 错词回看
+// ═══════════════════════════════════════════════════════════════════════
+let troubleOnlyMode = false   // true 时只从错词池抽词
+
+function renderStatsPanel() {
+  const buckets = { trouble: [], almost: [], progress: [], mastered: [], unseen: [] }
+  state.words.forEach((w, idx) => {
+    const p = state.progress[idx]
+    if (!p || (p.correct === 0 && p.wrong === 0)) {
+      buckets.unseen.push({ w, idx, p: null })
+    } else if (p.mastered) {
+      buckets.mastered.push({ w, idx, p })
+    } else if (p.consecutiveCorrect >= 2 && p.correct >= 2 && !p.mastered) {
+      // 连对 2 次了但还差时间检验 → 「快掌握了」
+      buckets.almost.push({ w, idx, p })
+    } else if (p.wrong > 0) {
+      buckets.trouble.push({ w, idx, p })
+    } else {
+      buckets.progress.push({ w, idx, p })
+    }
+  })
+  buckets.trouble.sort((a, b) => b.p.wrong - a.p.wrong)
+  buckets.almost.sort((a, b) => (a.p.firstCorrect||0) - (b.p.firstCorrect||0))
+
+  const total = state.words.length
+  const masteredCount = buckets.mastered.length
+  const pct = total > 0 ? Math.round((masteredCount / total) * 100) : 0
+
+  const card = document.getElementById("stats-card")
+  card.innerHTML = `
+    <div class="stats-head">
+      <h2>📊 学习进度</h2>
+      <button class="stats-close" id="stats-close">✕</button>
+    </div>
+
+    <div class="stats-summary">
+      <div style="display:flex;justify-content:space-between;font-weight:800;">
+        <span>掌握度</span>
+        <span style="color:#4ade80;">${masteredCount} / ${total}</span>
+      </div>
+      <div class="stats-bar"><div class="stats-bar-fill" style="width:${pct}%"></div></div>
+      <div class="stats-summary-text">
+        🏆 累计打死 ${state.defeatedCount} 只怪 · ⭐ ${state.xp} XP · 🪙 ${state.coins}
+      </div>
+    </div>
+
+    ${buckets.trouble.length > 0 ? `
+      <div class="stats-section trouble">
+        <h3>❌ 还要练 (${buckets.trouble.length})</h3>
+        <div class="stats-list">
+          ${buckets.trouble.map((b) => `
+            <div class="stats-word-row">
+              <span class="stats-word-name">${b.w.word}</span>
+              <span class="stats-word-meta bad">错 ${b.p.wrong} 次</span>
+            </div>
+          `).join("")}
+        </div>
+        <button class="stats-action-btn" id="battle-trouble">⚔️ 挑战这 ${buckets.trouble.length} 个错词</button>
+      </div>
+    ` : ""}
+
+    ${buckets.almost.length > 0 ? `
+      <div class="stats-section" style="--stats-color:#ffd700;">
+        <h3 style="color:#ffd700;">🟡 快掌握了 (${buckets.almost.length})</h3>
+        <div class="stats-list">
+          ${buckets.almost.map((b) => {
+            const minSinceFirst = Math.floor((Date.now() - (b.p.firstCorrect||0)) / 60000)
+            const minLeft = Math.max(0, 20 - minSinceFirst)
+            return `<div class="stats-word-row">
+              <span class="stats-word-name">${b.w.word}</span>
+              <span class="stats-word-meta">${minLeft > 0 ? `${minLeft} 分钟后再练就毕业` : "现在再练就毕业 ✨"}</span>
+            </div>`
+          }).join("")}
+        </div>
+      </div>
+    ` : ""}
+
+    ${buckets.progress.length > 0 ? `
+      <div class="stats-section progress">
+        <h3>⏳ 学习中 (${buckets.progress.length})</h3>
+        <div class="stats-list">
+          <div class="stats-words-inline">${buckets.progress.map((b) => b.w.word).join(" · ")}</div>
+        </div>
+      </div>
+    ` : ""}
+
+    ${buckets.mastered.length > 0 ? `
+      <div class="stats-section mastered">
+        <h3>✅ 已掌握 (${buckets.mastered.length})</h3>
+        <div class="stats-list">
+          <div class="stats-words-inline">${buckets.mastered.map((b) => b.w.word).join(" · ")}</div>
+        </div>
+      </div>
+    ` : ""}
+
+    ${buckets.unseen.length > 0 ? `
+      <div class="stats-section unseen">
+        <h3>💭 还没遇到 (${buckets.unseen.length})</h3>
+        <div class="stats-list">
+          <div class="stats-words-inline">${buckets.unseen.map((b) => b.w.word).join(" · ")}</div>
+        </div>
+      </div>
+    ` : ""}
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1);">
+      <button class="stats-action-btn" id="reset-progress" style="background:linear-gradient(135deg,#666,#444);border-color:#888;">
+        🔄 重置词的进度（保留 XP & 金币）
+      </button>
+    </div>
+  `
+
+  document.getElementById("stats-close").onclick = hideStats
+  const btn = document.getElementById("battle-trouble")
+  if (btn) {
+    btn.onclick = () => {
+      hideStats()
+      startTroubleBattle(buckets.trouble.map((b) => b.idx))
+    }
+  }
+  const resetBtn = document.getElementById("reset-progress")
+  if (resetBtn) {
+    resetBtn.onclick = () => {
+      if (!confirm("把所有词的对错次数清零，重新开始练习？\n(XP 和金币会保留)")) return
+      state.progress = {}
+      saveState()
+      hideStats()
+      startBattle()
+    }
+  }
+}
+
+function showStats() {
+  renderStatsPanel()
+  document.getElementById("stats-overlay").classList.add("open")
+}
+function hideStats() {
+  document.getElementById("stats-overlay").classList.remove("open")
+}
+
+document.getElementById("stats-btn").onclick = showStats
+
+// ─── 错词专练战斗 ─────────────────────────────────
+let troubleWordPool = null
+
+function startTroubleBattle(wordIdxList) {
+  if (!wordIdxList || wordIdxList.length === 0) return
+  troubleWordPool = [...wordIdxList]
+  troubleOnlyMode = true
+
+  // 特殊"错词 Hydra"怪物：HP = min(错词数, 8)
+  const hp = Math.min(wordIdxList.length, 8)
+  state.battle = {
+    monsterIdx: -1,
+    monster: {
+      id: "hydra",
+      name: "Mistake Hydra",
+      emoji: "🐲",
+      hp,
+      color: "#c12222",
+      intro: "嘶... 我由你的错词组成！把它们都拼对来打败我！",
+      reward: hp * 4,
+      xp: hp * 8,
+      boss: true,
+    },
+    monsterHp: hp,
+    monsterHpMax: hp,
+    playerHearts: PLAYER_HEARTS,
+    wordsUsed: [],
+  }
+  state.pendingMode = pickRandomMode()
+  state.currentWordIdx = troubleWordPool[Math.floor(Math.random() * troubleWordPool.length)]
+  playSound("boss")
+  renderBattle()
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MODAL (词表管理)
+// ═══════════════════════════════════════════════════════════════════════
+const modal = document.getElementById("modal")
+const wordInput = document.getElementById("word-input")
+document.getElementById("settings-btn").onclick = () => {
+  wordInput.value = state.words.map((w) => w.word).join("\n")
+  modal.classList.add("open")
+}
+document.getElementById("modal-cancel").onclick = () => modal.classList.remove("open")
+document.getElementById("modal-reset").onclick = () => {
+  if (!confirm("恢复默认 40 词？XP 和金币保留。")) return
+  state.words = [...DEFAULT_WORDS]
+  state.progress = {}
+  saveState()
+  modal.classList.remove("open")
+  startBattle()
+}
+document.getElementById("modal-save").onclick = () => {
+  const lines = wordInput.value.split("\n").map((l) => l.trim()).filter(Boolean)
+  if (!lines.length) { alert("至少输入一个单词"); return }
+  state.words = lines.map((w) => {
+    const existing = DEFAULT_WORDS.find((d) => d.word.toLowerCase() === w.toLowerCase())
+    if (existing) return existing
+    return { word: w, syllables: autoSyllables(w), stress: 0, traps: [], meaning: "", example: "" }
+  })
+  state.progress = {}
+  saveState()
+  modal.classList.remove("open")
+  startBattle()
+}
+function autoSyllables(word) {
+  const vowels = "aeiouy"
+  const groups = []; let cur = ""; let lastWasVowel = null
+  for (const c of word.toLowerCase()) {
+    const isV = vowels.includes(c)
+    if (lastWasVowel !== null && lastWasVowel !== isV && cur.length >= 2 && isV) {
+      groups.push(cur); cur = c
+    } else cur += c
+    lastWasVowel = isV
+  }
+  if (cur) groups.push(cur)
+  return groups.length > 0 ? groups : [word]
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+loadState()
+updateHeader()
+// 第一次进入：显示欢迎 overlay
+if (state.defeatedCount === 0) {
+  showOverlay({
+    emoji: "⚔️",
+    title: "SPELLING QUEST",
+    msg: "你是魔法师学徒。<br>拼写正确 = 攻击怪物 🗡<br>拼写错误 = 失去生命 ❤️<br><br>打败所有 15 只怪物拯救王国！",
+    rewards: [],
+    btnText: "🪄 开始冒险",
+    onClick: () => { hideOverlay(); startBattle() },
+  })
+} else {
+  startBattle()
+}
+</script>
+</body>
+</html>
