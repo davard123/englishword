@@ -6,6 +6,10 @@
 import asyncio
 import edge_tts
 import os
+import sys
+
+# 修复 Windows 终端编码
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 VOICE = "en-US-JennyNeural"
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "audio")
@@ -40,13 +44,14 @@ WORDS = [
     "circumstance", "contemporary", "coordinates", "destination", "expedition",
     "fortunately", "headquarters", "hemisphere", "horizontal", "infrastructure",
     "millennium", "neighborhood", "perpendicular", "surveillance",
+    "topography", "vicinity", "wilderness",
 ]
 
 async def generate_word(word: str, semaphore: asyncio.Semaphore):
     """生成单个单词的 MP3 文件"""
     output_path = os.path.join(OUTPUT_DIR, f"{word.lower()}.mp3")
     if os.path.exists(output_path):
-        print(f"  🏭  已存在，跳过: {word}")
+        print(f"  [SKIP] already exists: {word}")
         return
 
     async with semaphore:
@@ -59,9 +64,9 @@ async def generate_word(word: str, semaphore: asyncio.Semaphore):
 
 async def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print(f"生成目录: {OUTPUT_DIR}")
-    print(f"使用声音: {VOICE}")
-    print(f"共 {len(WORDS)} 个单词\n")
+    print(f"Output dir: {OUTPUT_DIR}")
+    print(f"Voice: {VOICE}")
+    print(f"Total words: {len(WORDS)}\n")
 
     semaphore = asyncio.Semaphore(3)  # 最多同时3个并发请求，防止被限流
     tasks = [generate_word(w, semaphore) for w in WORDS]
@@ -69,7 +74,7 @@ async def main():
 
     # 验证结果
     generated = [f for f in os.listdir(OUTPUT_DIR) if f.endswith(".mp3")]
-    print(f"\n完成！共生成 {len(generated)} 个 MP3 文件")
+    print(f"\nDone! Generated {len(generated)} MP3 files")
 
 if __name__ == "__main__":
     asyncio.run(main())

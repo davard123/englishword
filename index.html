@@ -872,6 +872,9 @@ const DEFAULT_WORDS = [
   { word:"neighborhood", syllables:["neigh","bor","hood"],  stress:0, traps:[1,2,3],        meaning:"a district where people live",             example:"I live in a quiet neighborhood." },
   { word:"perpendicular",syllables:["per","pen","dic","u","lar"], stress:2, traps:[1,2,3,4], meaning:"forming a right angle",                    example:"The lines are perpendicular." },
   { word:"surveillance", syllables:["sur","veil","lance"],   stress:1, traps:[1,2,3,4],     meaning:"careful watch kept over someone or something", example:"The police use surveillance cameras." },
+  { word:"topography",   syllables:["to","pog","ra","phy"],   stress:1, traps:[1,2,3],        meaning:"the shape and features of the land",          example:"The topography of the mountains is steep." },
+  { word:"vicinity",     syllables:["vi","cin","i","ty"],     stress:0, traps:[1,2,3],        meaning:"the area near a place",                       example:"Is there a store in the vicinity?" },
+  { word:"wilderness",   syllables:["wil","der","ness"],      stress:0, traps:[1,2,3],        meaning:"a wild, uncultivated region",                 example:"They hiked into the wilderness." },
 ]
 
 const PLAYER_HEARTS = 3
@@ -1969,7 +1972,7 @@ document.getElementById("settings-btn").onclick = () => {
 }
 document.getElementById("modal-cancel").onclick = () => modal.classList.remove("open")
 document.getElementById("modal-reset").onclick = () => {
-  if (!confirm("恢复默认 40 词？XP 和金币保留。")) return
+  if (!confirm("恢复默认 120 词？XP 和金币保留。")) return
   state.words = [...DEFAULT_WORDS]
   state.progress = {}
   saveState()
