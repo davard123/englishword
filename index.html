@@ -887,7 +887,7 @@ function burstConfetti(x, y, count = 20, colors) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// TTS
+// TTS — 优先使用预生成 MP3（edge-tts, en-US-JennyNeural），降级到系统 TTS
 // ═══════════════════════════════════════════════════════════════════════
 let preferredVoice = null
 function pickVoice() {
@@ -902,15 +902,50 @@ function pickVoice() {
 speechSynthesis.addEventListener("voiceschanged", () => { preferredVoice = pickVoice() })
 setTimeout(() => { if (!preferredVoice) preferredVoice = pickVoice() }, 500)
 
+// 当前正在播放的 Audio 对象（用于中断前一个）
+let _currentAudio = null
+
 function speak(text, opts = {}) {
+  // 先停止正在播放的内容
+  if (_currentAudio) { _currentAudio.pause(); _currentAudio = null }
   speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  if (preferredVoice) u.voice = preferredVoice
-  u.rate = opts.rate || 0.85
-  u.pitch = 1; u.lang = "en-US"
-  if (opts.onstart) u.onstart = opts.onstart
-  if (opts.onend) u.onend = opts.onend
-  speechSynthesis.speak(u)
+
+  // 尝试播放预生成 MP3
+  const filename = text.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + ".mp3"
+  const audioUrl = "audio/" + filename
+  const audio = new Audio(audioUrl)
+  _currentAudio = audio
+
+  audio.oncanplaythrough = () => {
+    if (opts.onstart) opts.onstart()
+  }
+  audio.onended = () => {
+    _currentAudio = null
+    if (opts.onend) opts.onend()
+  }
+  audio.onerror = () => {
+    // MP3 不存在 → 降级到 Web Speech API
+    _currentAudio = null
+    const u = new SpeechSynthesisUtterance(text)
+    if (preferredVoice) u.voice = preferredVoice
+    u.rate = opts.rate || 0.85
+    u.pitch = 1; u.lang = "en-US"
+    if (opts.onstart) u.onstart = opts.onstart
+    if (opts.onend) u.onend = opts.onend
+    speechSynthesis.speak(u)
+  }
+  audio.play().catch(() => {
+    // 浏览器 autoplay 策略拦截时也降级
+    _currentAudio = null
+    const u = new SpeechSynthesisUtterance(text)
+    if (preferredVoice) u.voice = preferredVoice
+    u.rate = opts.rate || 0.85
+    u.pitch = 1; u.lang = "en-US"
+    if (opts.onstart) u.onstart = opts.onstart
+    if (opts.onend) u.onend = opts.onend
+    speechSynthesis.speak(u)
+  })
+  // 注意：MP3 路径存在时不调用 speechSynthesis.speak
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -925,6 +960,9 @@ function updateHeader() {
 // BATTLE: START
 // ═══════════════════════════════════════════════════════════════════════
 function startBattle() {
+  battleEnded = false
+  troubleOnlyMode = false
+  troubleWordPool = null
   const monster = MONSTERS[state.questIndex % MONSTERS.length]
   state.battle = {
     monsterIdx: state.questIndex % MONSTERS.length,
@@ -1285,7 +1323,12 @@ function findAutoTraps(word) {
 // ═══════════════════════════════════════════════════════════════════════
 // ATTACK RESOLUTION
 // ═══════════════════════════════════════════════════════════════════════
+
+// Guard: 防止同一局内多个 setTimeout 竞争触发 onPlayerDefeated / onMonsterDefeated
+let battleEnded = false
+
 function onAttackSuccess() {
+  if (battleEnded) return
   const b = state.battle
   playSound("attack")
   const art = document.getElementById("monster-art")
@@ -1320,7 +1363,9 @@ function onAttackSuccess() {
   }
 
   setTimeout(() => {
+    if (battleEnded) return
     if (b.monsterHp <= 0) {
+      battleEnded = true
       onMonsterDefeated()
     } else {
       nextChallenge()
@@ -1329,6 +1374,7 @@ function onAttackSuccess() {
 }
 
 function onAttackFail(correctWord) {
+  if (battleEnded) return
   const b = state.battle
   playSound("hurt")
   // 玩家受伤
@@ -1349,10 +1395,13 @@ function onAttackFail(correctWord) {
   const fbDiv = document.createElement("div")
   fbDiv.style.cssText = "background:#fdecea;color:#c0392b;padding:10px;border-radius:10px;margin-top:10px;text-align:center;font-weight:800;"
   fbDiv.innerHTML = `正确: <span style="font-size:18px;">${correctWord}</span>`
-  document.getElementById("challenge-area").querySelector(".challenge-card").appendChild(fbDiv)
+  const cardEl = document.getElementById("challenge-area").querySelector(".challenge-card")
+  if (cardEl) cardEl.appendChild(fbDiv)
 
   setTimeout(() => {
+    if (battleEnded) return
     if (b.playerHearts <= 0) {
+      battleEnded = true
       onPlayerDefeated()
     } else {
       nextChallenge()
@@ -1600,6 +1649,7 @@ let troubleWordPool = null
 
 function startTroubleBattle(wordIdxList) {
   if (!wordIdxList || wordIdxList.length === 0) return
+  battleEnded = false
   troubleWordPool = [...wordIdxList]
   troubleOnlyMode = true
 
