@@ -287,6 +287,16 @@
     padding: 0;
     transition: transform 0.05s, box-shadow 0.05s;
   }
+  @media (max-width: 480px) {
+    .key { height: 48px; max-width: 42px; font-size: 17px; }
+    .key.special { max-width: 60px; }
+    .key.special.go { max-width: 90px; }
+    .kb-row { gap: 5px; margin-bottom: 5px; }
+  }
+  @media (max-width: 360px) {
+    .key { height: 44px; max-width: 38px; font-size: 15px; }
+    .kb-row { gap: 3px; margin-bottom: 3px; }
+  }
   .key:active {
     transform: translateY(2px);
     border-bottom-width: 1px;
@@ -601,6 +611,67 @@
 
   /* Hide stuff during animations */
   .hidden { visibility: hidden; }
+
+  /* ── DAILY STREAK BAR ────────────────────────────── */
+  .daily-bar {
+    background: rgba(15, 8, 34, 0.85);
+    border-radius: 14px;
+    padding: 8px 14px;
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid rgba(240, 208, 96, 0.25);
+    margin: 0 14px;
+    position: relative; z-index: 1;
+  }
+  .daily-streak {
+    font-size: 13px; font-weight: 900;
+    color: #ff9933;
+    white-space: nowrap;
+  }
+  .daily-goal-wrap {
+    flex: 1; display: flex; flex-direction: column; gap: 3px;
+  }
+  .daily-goal-label {
+    font-size: 11px; color: #b9adcc; font-weight: 700;
+  }
+  .daily-goal-bar {
+    height: 8px; background: rgba(0,0,0,0.4);
+    border-radius: 4px; overflow: hidden;
+  }
+  .daily-goal-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #ffd700);
+    transition: width 0.5s ease-out;
+  }
+  .daily-goal-done {
+    font-size: 18px;
+  }
+
+  /* ── ANSWER REVIEW CARD (答错解析) ────────────────── */
+  .review-card {
+    background: linear-gradient(135deg, #fff9ec, #fff3f3);
+    border: 2px solid #e8b04a;
+    border-radius: 16px;
+    padding: 16px;
+    margin-top: 10px;
+    color: #2a2118;
+  }
+  .review-card .review-title {
+    font-size: 11px; font-weight: 800; letter-spacing: 1px;
+    color: #c0392b; margin-bottom: 8px;
+  }
+  .review-card .review-correct {
+    font-size: 28px; font-weight: 900; color: #6b3eb0;
+    text-align: center; letter-spacing: 3px;
+    margin-bottom: 8px;
+  }
+  .review-card .review-syllables {
+    text-align: center; font-size: 15px;
+    color: #8d6b4c; margin-bottom: 6px;
+  }
+  .review-card .review-syllables b { color: #c0392b; }
+  .review-card .review-meaning {
+    font-size: 13px; color: #5a4a3c; text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -612,10 +683,20 @@
     <span class="stat-pill stat-coin">🪙<span id="coin-num">0</span></span>
   </div>
   <button class="icon-btn" id="stats-btn">📊</button>
+  <button class="icon-btn" id="mute-btn">🔊</button>
   <button class="icon-btn" id="settings-btn">⚙</button>
 </header>
 
 <main id="main-area"></main>
+
+<div class="daily-bar" id="daily-bar" style="display:none;">
+  <span class="daily-streak" id="daily-streak"></span>
+  <div class="daily-goal-wrap">
+    <div class="daily-goal-label" id="daily-goal-label"></div>
+    <div class="daily-goal-bar"><div class="daily-goal-fill" id="daily-goal-fill"></div></div>
+  </div>
+  <span class="daily-goal-done" id="daily-goal-done"></span>
+</div>
 
 <div id="confetti-host"></div>
 
@@ -710,10 +791,172 @@ const DEFAULT_WORDS = [
   { word:"communicate",  syllables:["com","mu","ni","cate"],  stress:1, traps:[1,2],       meaning:"to share information",                   example:"We communicate by text." },
   { word:"experience",   syllables:["ex","pe","ri","ence"],   stress:1, traps:[5,7,8],     meaning:"something you've done",                  example:"Tell me about your experience." },
   { word:"continue",     syllables:["con","tin","ue"],        stress:1, traps:[6,7],       meaning:"to keep going",                          example:"Please continue your story." },
+  // ── 新增 80 词（日常生活类 20）──────────────────
+  { word:"acknowledge",  syllables:["ac","knowl","edge"],      stress:1, traps:[1,2,3,4],       meaning:"to admit or accept as true",        example:"I acknowledge my mistake." },
+  { word:"accomplish",   syllables:["ac","com","plish"],      stress:1, traps:[1,2,3],        meaning:"to succeed in doing",                  example:"We can accomplish anything." },
+  { word:"atmosphere",   syllables:["at","mos","phere"],     stress:0, traps:[2,3,4,5],     meaning:"the air around the earth",             example:"The atmosphere was festive." },
+  { word:"category",     syllables:["cat","e","go","ry"],    stress:0, traps:[1,2,3,4],     meaning:"a group of things",                    example:"What category is this in?" },
+  { word:"committee",    syllables:["com","mit","tee"],      stress:1, traps:[1,2,3],        meaning:"a group of people chosen for a task", example:"The committee meets on Monday." },
+  { word:"community",    syllables:["com","mu","ni","ty"],   stress:1, traps:[1,2,3],        meaning:"a group of people living in the same place", example:"Our community is very kind." },
+  { word:"conscience",   syllables:["con","science"],        stress:0, traps:[1,2,3,4],     meaning:"inner sense of right and wrong",       example:"My conscience is clear." },
+  { word:"decision",     syllables:["de","ci","sion"],      stress:1, traps:[1,2,3],        meaning:"a choice you make",                      example:"It was a hard decision." },
+  { word:"description",  syllables:["de","scrip","tion"],   stress:1, traps:[1,2,3,4],     meaning:"words that tell what something is like", example:"Write a description of your room." },
+  { word:"disappear",    syllables:["dis","ap","pear"],      stress:1, traps:[1,2,3],        meaning:"to go out of sight",                    example:"The magician made the rabbit disappear." },
+  { word:"disappoint",   syllables:["dis","ap","point"],     stress:1, traps:[1,2,3],        meaning:"to make someone sad by not doing what was hoped", example:"I don't want to disappoint you." },
+  { word:"education",    syllables:["ed","u","ca","tion"],   stress:2, traps:[1,2,3],        meaning:"the process of teaching and learning", example:"Education is very important." },
+  { word:"excellent",    syllables:["ex","cel","lent"],      stress:0, traps:[1,2,3],        meaning:"very good; of the highest quality",    example:"She did an excellent job." },
+  { word:"familiar",     syllables:["fa","mil","iar"],       stress:1, traps:[1,2,3],        meaning:"well-known; often seen",               example:"That song sounds familiar." },
+  { word:"favorite",     syllables:["fa","vor","ite"],       stress:0, traps:[1,2,3],        meaning:"liked more than others",                example:"Pizza is my favorite food." },
+  { word:"guarantee",    syllables:["guar","an","tee"],     stress:2, traps:[1,2,3],        meaning:"a promise that something will happen", example:"I guarantee you'll like it." },
+  { word:"hygiene",      syllables:["hy","giene"],           stress:0, traps:[1,2,3],        meaning:"conditions that keep you healthy",     example:"Good hygiene prevents illness." },
+  { word:"imagination",  syllables:["i","mag","i","na","tion"], stress:2, traps:[1,2,3,4], meaning:"the ability to form new ideas",          example:"Use your imagination!" },
+  { word:"incredible",   syllables:["in","cred","i","ble"], stress:1, traps:[1,2,3],     meaning:"impossible or very hard to believe",  example:"The view was incredible!" },
+  { word:"information",  syllables:["in","for","ma","tion"], stress:2, traps:[1,2,3],     meaning:"facts or details about something",        example:"Can I have more information?" },
+  // ── 学校学科类 20 ──────────────────────────────────
+  { word:"abbreviate",   syllables:["ab","bre","vi","ate"],  stress:1, traps:[1,2,3],        meaning:"tomake shorter",                        example:"Can you abbreviate this word?" },
+  { word:"arithmetic",   syllables:["a","rith","me","tic"], stress:1, traps:[1,2,3],        meaning:"the branch of math with numbers",       example:"We learned arithmetic today." },
+  { word:"bibliography", syllables:["bib","li","og","ra","phy"], stress:2, traps:[1,2,3,4], meaning:"a list of books used in research",    example:"Check the bibliography for sources." },
+  { word:"certificate",  syllables:["cer","tif","i","cate"],stress:1, traps:[1,2,3],        meaning:"an official document",                  example:"She received a certificate." },
+  { word:"civilization", syllables:["civ","i","li","za","tion"], stress:2, traps:[1,2,3,4], meaning:"human society with cities and culture", example:"Ancient Chinese civilization was great." },
+  { word:"competition",  syllables:["com","pe","ti","tion"], stress:2, traps:[1,2,3],        meaning:"a contest between people",                example:"The competition was fierce." },
+  { word:"conclusion",   syllables:["con","clu","sion"],     stress:1, traps:[1,2,3],        meaning:"the end or finish of something",        example:"In conclusion, I agree." },
+  { word:"curriculum",   syllables:["cur","ric","u","lum"],  stress:1, traps:[1,2,3,4],     meaning:"the subjects in a course of study",    example:"Our school curriculum is challenging." },
+  { word:"examination",  syllables:["ex","am","i","na","tion"], stress:2, traps:[1,2,3,4], meaning:"a formal test",                          example:"The examination is on Friday." },
+  { word:"explanation",  syllables:["ex","pla","na","tion"], stress:2, traps:[1,2,3],        meaning:"a statement that makes something clear", example:"Can you give me an explanation?" },
+  { word:"geography",    syllables:["ge","og","ra","phy"],    stress:1, traps:[1,2,3],        meaning:"the study of earth and its features",  example:"We study geography in school." },
+  { word:"grammar",      syllables:["gram","mar"],            stress:0, traps:[1,2,3],        meaning:"the rules of how to use a language",  example:"Good grammar is important." },
+  { word:"hypothesis",   syllables:["hy","poth","e","sis"],  stress:1, traps:[1,2,3,4],     meaning:"an idea that can be tested",             example:"Our hypothesis needs testing." },
+  { word:"laboratory",   syllables:["lab","o","ra","to","ry"], stress:1, traps:[1,2,3,4], meaning:"a room for scientific experiments",     example:"We did an experiment in the laboratory." },
+  { word:"literature",   syllables:["lit","er","a","ture"],  stress:0, traps:[1,2,3],        meaning:"written works like novels and poems",  example:"We study literature in English class." },
+  { word:"mathematics",  syllables:["math","e","mat","ics"], stress:2, traps:[1,2,3],        meaning:"the study of numbers and shapes",        example:"Mathematics is my favorite subject." },
+  { word:"measurement",  syllables:["meas","ure","ment"],    stress:0, traps:[1,2,3],        meaning:"the size, length, or amount of something", example:"We took the measurement carefully." },
+  { word:"paragraph",    syllables:["par","a","graph"],      stress:0, traps:[1,2,3],        meaning:"a section of writing",                  example:"Start a new paragraph here." },
+  { word:"pronunciation",syllables:["pro","nun","ci","a","tion"], stress:2, traps:[1,2,3,4], meaning:"the way a word is spoken",               example:"Her pronunciation is very clear." },
+  // ── 自然科学类 20 ──────────────────────────────────
+  { word:"agriculture",  syllables:["ag","ri","cul","ture"], stress:0, traps:[1,2,3,4],     meaning:"farming; growing crops",                 example:"Agriculture is important for food." },
+  { word:"biology",      syllables:["bi","ol","o","gy"],      stress:1, traps:[1,2,3],        meaning:"the study of living things",             example:"We study plants in biology." },
+  { word:"catastrophe",  syllables:["ca","tas","tro","phe"], stress:1, traps:[1,2,3,4],     meaning:"a sudden disaster",                    example:"The flood was a catastrophe." },
+  { word:"chemistry",    syllables:["chem","is","try"],      stress:0, traps:[1,2,3],        meaning:"the study of substances and how they change", example:"Chemistry is a fun subject." },
+  { word:"contaminate",  syllables:["con","tam","i","nate"], stress:1, traps:[1,2,3,4],     meaning:"to make impure or polluted",            example:"Don't contaminate the water." },
+  { word:"electricity",  syllables:["e","lec","tric","i","ty"], stress:2, traps:[1,2,3,4], meaning:"a form of energy for lights and machines", example:"The electricity went out." },
+  { word:"endangered",   syllables:["en","dan","gered"],     stress:1, traps:[1,2,3],        meaning:"at risk of extinction",                  example:"The panda is an endangered species." },
+  { word:"evaporate",    syllables:["e","vap","o","rate"],   stress:1, traps:[1,2,3],        meaning:"to change from liquid to gas",           example:"The water will evaporate in the sun." },
+  { word:"evolution",    syllables:["ev","o","lu","tion"],   stress:2, traps:[1,2,3],        meaning:"the process by which living things develop", example:"Evolution takes a long time." },
+  { word:"experiment",   syllables:["ex","per","i","ment"],  stress:1, traps:[1,2,3],        meaning:"a scientific test",                      example:"We did an experiment in class." },
+  { word:"hibernation",  syllables:["hi","ber","na","tion"], stress:2, traps:[1,2,3,4],     meaning:"the state of sleeping through winter",    example:"Bears go into hibernation." },
+  { word:"hurricane",    syllables:["hur","ri","cane"],      stress:0, traps:[1,2,3],        meaning:"a violent storm with strong winds",      example:"The hurricane destroyed many homes." },
+  { word:"investigation",syllables:["in","ves","ti","ga","tion"], stress:3, traps:[1,2,3,4], meaning:"a carefull examination",                 example:"The investigation took many days." },
+  { word:"metamorphosis",syllables:["met","a","mor","pho","sis"], stress:3, traps:[1,2,3,4], meaning:"a major change in form",                  example:"The caterpillar went through metamorphosis." },
+  { word:"microscope",   syllables:["mi","cro","scope"],     stress:0, traps:[1,2,3],        meaning:"an instrument that makes small things look bigger", example:"We looked at cells under the microscope." },
+  { word:"organism",     syllables:["or","gan","ism"],       stress:0, traps:[1,2,3],        meaning:"a living thing",                         example:"A human is a complex organism." },
+  { word:"photosynthesis",syllables:["pho","to","syn","the","sis"], stress:3, traps:[1,2,3,4], meaning:"how plants make food from sunlight",      example:"Photosynthesis needs sunlight." },
+  { word:"precipitation",syllables:["pre","cip","i","ta","tion"], stress:3, traps:[1,2,3,4], meaning:"rain, snow, sleet, or hail",             example:"Precipitation is part of the water cycle." },
+  { word:"vertebrate",   syllables:["ver","te","brate"],     stress:0, traps:[1,2,3],        meaning:"an animal with a backbone",              example:"Humans are vertebrates." },
+  // ── 时间地点类 20 ──────────────────────────────────
+  { word:"anniversary",  syllables:["an","ni","ver","sa","ry"], stress:2, traps:[1,2,3,4], meaning:"a date that is remembered",                example:"Today is our anniversary." },
+  { word:"approximately",syllables:["ap","prox","i","mate","ly"], stress:2, traps:[1,2,3,4], meaning:"more or less than the exact number",  example:"There are approximately 30 students." },
+  { word:"architecture", syllables:["ar","chi","tec","ture"], stress:0, traps:[1,2,3,4],     meaning:"the art of designing buildings",            example:"She studies architecture." },
+  { word:"boundary",     syllables:["bound","a","ry"],       stress:0, traps:[1,2,3],        meaning:"a line that marks the limit",             example:"The river is the boundary." },
+  { word:"celebration",  syllables:["cel","e","bra","tion"], stress:2, traps:[1,2,3],        meaning:"a special event to celebrate",            example:"We had a big celebration." },
+  { word:"circumstance", syllables:["cir","cum","stance"],   stress:0, traps:[1,2,3,4],     meaning:"a fact or event that affects a situation", example:"Under the circumstances, it's okay." },
+  { word:"contemporary", syllables:["con","tem","po","rar","y"], stress:1, traps:[1,2,3,4], meaning:"from the same time",                       example:"Contemporary art is modern." },
+  { word:"coordinates",  syllables:["co","or","di","nates"], stress:1, traps:[1,2,3],        meaning:"numbers that show position on a map",    example:"Give me the coordinates." },
+  { word:"destination",  syllables:["des","ti","na","tion"], stress:2, traps:[1,2,3],        meaning:"the place where someone is going",       example:"Our destination is the park." },
+  { word:"expedition",   syllables:["ex","pe","di","tion"],  stress:1, traps:[1,2,3],        meaning:"a journey for a specific purpose",        example:"They went on an expedition." },
+  { word:"fortunately",  syllables:["for","tu","nate","ly"], stress:0, traps:[1,2,3,4],     meaning:"by good luck",                           example:"Fortunately, no one was hurt." },
+  { word:"headquarters", syllables:["head","quar","ters"],   stress:0, traps:[1,2,3,4],     meaning:"the main office of an organization",    example:"The headquarters is in Beijing." },
+  { word:"hemisphere",   syllables:["hem","i","sphere"],     stress:0, traps:[1,2,3],        meaning:"half of the earth",                       example:"China is in the Northern Hemisphere." },
+  { word:"horizontal",   syllables:["hor","i","zon","tal"],  stress:2, traps:[1,2,3],        meaning:"going across; side to side",             example:"Draw a horizontal line." },
+  { word:"infrastructure",syllables:["in","fra","struc","ture"], stress:1, traps:[1,2,3,4], meaning:"the basic systems of a place",             example:"The city needs better infrastructure." },
+  { word:"millennium",   syllables:["mil","len","ni","um"],  stress:2, traps:[1,2,3],        meaning:"a period of 1000 years",                  example:"We are in the third millennium." },
+  { word:"neighborhood", syllables:["neigh","bor","hood"],  stress:0, traps:[1,2,3],        meaning:"a district where people live",             example:"I live in a quiet neighborhood." },
+  { word:"perpendicular",syllables:["per","pen","dic","u","lar"], stress:2, traps:[1,2,3,4], meaning:"forming a right angle",                    example:"The lines are perpendicular." },
+  { word:"surveillance", syllables:["sur","veil","lance"],   stress:1, traps:[1,2,3,4],     meaning:"careful watch kept over someone or something", example:"The police use surveillance cameras." },
 ]
 
 const PLAYER_HEARTS = 3
 const STORAGE_KEY = "spelling-quest-v3"
+const DAILY_GOAL = 10  // 每日答对目标
+
+// ═══════════════════════════════════════════════════════════════════════
+// MUTE & DAILY STREAK STATE
+// ═══════════════════════════════════════════════════════════════════════
+let isMuted = false
+let dailyData = { date: "", correct: 0, streak: 0 }
+
+function loadDailyData() {
+  const raw = localStorage.getItem("spelling-quest-daily")
+  const today = new Date().toISOString().slice(0, 10)
+  if (raw) {
+    try {
+      const d = JSON.parse(raw)
+      if (d.date === today) dailyData = d
+      else if (d.date === getYesterday()) dailyData = { date: today, correct: 0, streak: d.streak + 1 }
+      else dailyData = { date: today, correct: 0, streak: 0 }
+    } catch { dailyData = { date: today, correct: 0, streak: 0 } }
+  } else {
+    dailyData = { date: today, correct: 0, streak: 0 }
+  }
+  saveDailyData()
+}
+
+function getYesterday() {
+  const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
+}
+
+function saveDailyData() {
+  localStorage.setItem("spelling-quest-daily", JSON.stringify(dailyData))
+}
+
+function onDailyCorrect() {
+  const today = new Date().toISOString().slice(0, 10)
+  if (dailyData.date !== today) {
+    // 跨天：检查昨天是否达标
+    const yesterday = getYesterday()
+    const oldRaw = JSON.parse(localStorage.getItem("spelling-quest-daily") || '{}')
+    if (oldRaw.date === yesterday && oldRaw.correct >= DAILY_GOAL) {
+      dailyData.streak = (oldRaw.streak || 0) + 1
+    } else if (oldRaw.date !== yesterday) {
+      dailyData.streak = 0
+    } else {
+      dailyData.streak = oldRaw.streak || 0
+    }
+    dailyData.date = today
+    dailyData.correct = 0
+  }
+  dailyData.correct++
+  // 达标时给额外奖励
+  if (dailyData.correct === DAILY_GOAL) {
+    state.xp += 50
+    state.coins += 10
+  }
+  saveDailyData()
+  updateDailyBar()
+}
+
+function updateDailyBar() {
+  const bar = document.getElementById("daily-bar")
+  if (!bar) return
+  bar.style.display = ""
+  const streakEl = document.getElementById("daily-streak")
+  const labelEl = document.getElementById("daily-goal-label")
+  const fillEl = document.getElementById("daily-goal-fill")
+  const doneEl = document.getElementById("daily-goal-done")
+  if (dailyData.streak > 0) {
+    streakEl.textContent = "🔥 " + dailyData.streak + " 天"
+  } else {
+    streakEl.textContent = ""
+  }
+  const pct = Math.min(100, Math.round((dailyData.correct / DAILY_GOAL) * 100))
+  fillEl.style.width = pct + "%"
+  if (dailyData.correct >= DAILY_GOAL) {
+    labelEl.textContent = "今日目标 ✓ 已完成！"
+    doneEl.textContent = "🎉"
+  } else {
+    labelEl.textContent = "今日目标：答对 " + dailyData.correct + " / " + DAILY_GOAL
+    doneEl.textContent = ""
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // STATE
@@ -741,6 +984,7 @@ function saveState() {
     questIndex: state.questIndex,
     defeatedCount: state.defeatedCount,
     defeatedIds: state.defeatedIds,
+    isMuted: isMuted,
   }))
 }
 
@@ -756,6 +1000,7 @@ function loadState() {
     if (typeof d.questIndex === "number") state.questIndex = d.questIndex
     if (typeof d.defeatedCount === "number") state.defeatedCount = d.defeatedCount
     if (Array.isArray(d.defeatedIds)) state.defeatedIds = d.defeatedIds
+    if (typeof d.isMuted === "boolean") isMuted = d.isMuted
   } catch {}
 }
 
@@ -905,7 +1150,27 @@ setTimeout(() => { if (!preferredVoice) preferredVoice = pickVoice() }, 500)
 // 当前正在播放的 Audio 对象（用于中断前一个）
 let _currentAudio = null
 
+// ── 静音按钮 ─────────────────────────────
+function updateMuteBtn() {
+  const btn = document.getElementById("mute-btn")
+  if (!btn) return
+  btn.textContent = isMuted ? "🔇" : "🔊"
+  btn.title = isMuted ? "取消静音" : "静音"
+}
+document.getElementById("mute-btn").onclick = () => {
+  isMuted = !isMuted
+  if (isMuted) { if (_currentAudio) { _currentAudio.pause(); _currentAudio = null }; speechSynthesis.cancel() }
+  updateMuteBtn()
+  saveState() // 顺便保存静音状态
+}
+
 function speak(text, opts = {}) {
+  // 静音模式：直接回调，不播放任何声音
+  if (isMuted) {
+    if (opts.onstart) opts.onstart()
+    if (opts.onend) setTimeout(() => opts.onend(), 100)
+    return
+  }
   // 先停止正在播放的内容
   if (_currentAudio) { _currentAudio.pause(); _currentAudio = null }
   speechSynthesis.cancel()
@@ -1350,6 +1615,8 @@ function onAttackSuccess() {
   p.mastered = checkMastered(p)
   b.wordsUsed.push(state.currentWordIdx)
   saveState()
+  // 每日打卡
+  onDailyCorrect()
 
   // 刚刚达成 mastered 的特殊反馈
   if (!wasMastered && p.mastered) {
@@ -1391,12 +1658,24 @@ function onAttackFail(correctWord) {
   b.wordsUsed.push(state.currentWordIdx)
   saveState()
 
-  // 短暂显示正确拼写
-  const fbDiv = document.createElement("div")
-  fbDiv.style.cssText = "background:#fdecea;color:#c0392b;padding:10px;border-radius:10px;margin-top:10px;text-align:center;font-weight:800;"
-  fbDiv.innerHTML = `正确: <span style="font-size:18px;">${correctWord}</span>`
+  // 显示解析卡（音节 + 正确拼写 + 释义）
+  const word = state.words[state.currentWordIdx]
   const cardEl = document.getElementById("challenge-area").querySelector(".challenge-card")
-  if (cardEl) cardEl.appendChild(fbDiv)
+  if (cardEl) {
+    // 音节高亮提示
+    const syllHighlight = word.syllables.map((s, i) =>
+      `<b>${s}</b>${i < word.syllables.length - 1 ? " - " : ""}`
+    ).join("")
+    const reviewDiv = document.createElement("div")
+    reviewDiv.className = "review-card"
+    reviewDiv.innerHTML = `
+      <div class="review-title">⚠️ 答错了，正确答案：</div>
+      <div class="review-correct">${correctWord}</div>
+      <div class="review-syllables">音节拆分：${syllHighlight}</div>
+      <div class="review-meaning">${word.meaning}</div>
+    `
+    cardEl.appendChild(reviewDiv)
+  }
 
   setTimeout(() => {
     if (battleEnded) return
@@ -1406,7 +1685,7 @@ function onAttackFail(correctWord) {
     } else {
       nextChallenge()
     }
-  }, 1500)
+  }, 2000)
 }
 
 function nextChallenge() {
@@ -1728,7 +2007,10 @@ function autoSyllables(word) {
 // INIT
 // ═══════════════════════════════════════════════════════════════════════
 loadState()
+loadDailyData()
 updateHeader()
+updateMuteBtn()
+updateDailyBar()
 // 第一次进入：显示欢迎 overlay
 if (state.defeatedCount === 0) {
   showOverlay({
