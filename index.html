@@ -996,7 +996,12 @@ function loadState() {
   if (!raw) return
   try {
     const d = JSON.parse(raw)
-    if (Array.isArray(d.words)) state.words = d.words
+    if (Array.isArray(d.words)) {
+      // 自动合并：保留已保存的词，同时把 DEFAULT_WORDS 里新增的词补进来
+      const savedSet = new Set(d.words.map(w => w.word.toLowerCase()))
+      const extras = DEFAULT_WORDS.filter(w => !savedSet.has(w.word.toLowerCase()))
+      state.words = [...d.words, ...extras]
+    }
     if (d.progress) state.progress = d.progress
     if (typeof d.xp === "number") state.xp = d.xp
     if (typeof d.coins === "number") state.coins = d.coins
