@@ -1188,13 +1188,15 @@ function speak(text, opts = {}) {
   if (_currentAudio) { _currentAudio.pause(); _currentAudio = null }
   speechSynthesis.cancel()
 
-  // 尝试播放预生成 MP3
+  // 尝试播放预生成 MP3（加版本号防缓存）
   const filename = text.trim().toLowerCase().replace(/[^a-z0-9]/g, "") + ".mp3"
-  const audioUrl = "audio/" + filename
+  const audioUrl = "audio/" + filename + "?v=" + DATA_VERSION
   const audio = new Audio(audioUrl)
   _currentAudio = audio
+  let mp3Started = false
 
   audio.oncanplaythrough = () => {
+    mp3Started = true
     if (opts.onstart) opts.onstart()
   }
   audio.onended = () => {
@@ -1202,28 +1204,28 @@ function speak(text, opts = {}) {
     if (opts.onend) opts.onend()
   }
   audio.onerror = () => {
-    // MP3 不存在 → 降级到 Web Speech API
+    if (mp3Started) return
     _currentAudio = null
-    const u = new SpeechSynthesisUtterance(text)
-    if (preferredVoice) u.voice = preferredVoice
-    u.rate = opts.rate || 0.85
-    u.pitch = 1; u.lang = "en-US"
-    if (opts.onstart) u.onstart = opts.onstart
-    if (opts.onend) u.onend = opts.onend
-    speechSynthesis.speak(u)
+    fallbackTTS(text, opts)
   }
-  audio.play().catch(() => {
-    // 浏览器 autoplay 策略拦截时也降级
+  audio.play().then(() => {
+    mp3Started = true
+    if (opts.onstart) opts.onstart()
+  }).catch(() => {
+    if (mp3Started) return
     _currentAudio = null
-    const u = new SpeechSynthesisUtterance(text)
-    if (preferredVoice) u.voice = preferredVoice
-    u.rate = opts.rate || 0.85
-    u.pitch = 1; u.lang = "en-US"
-    if (opts.onstart) u.onstart = opts.onstart
-    if (opts.onend) u.onend = opts.onend
-    speechSynthesis.speak(u)
+    fallbackTTS(text, opts)
   })
-  // 注意：MP3 路径存在时不调用 speechSynthesis.speak
+}
+
+function fallbackTTS(text, opts) {
+  const u = new SpeechSynthesisUtterance(text)
+  if (preferredVoice) u.voice = preferredVoice
+  u.rate = opts.rate || 0.85
+  u.pitch = 1; u.lang = "en-US"
+  if (opts.onstart) u.onstart = opts.onstart
+  if (opts.onend) u.onend = opts.onend
+  speechSynthesis.speak(u)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
