@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Wizard">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Spelling Quest ⚔️</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -879,6 +882,7 @@ const DEFAULT_WORDS = [
 
 const PLAYER_HEARTS = 3
 const STORAGE_KEY = "spelling-quest-v3"
+const DATA_VERSION = 4   // 改版本号会自动重置词表为最新 DEFAULT_WORDS
 const DAILY_GOAL = 10  // 每日答对目标
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -980,6 +984,7 @@ let state = {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    ver: DATA_VERSION,
     words: state.words,
     progress: state.progress,
     xp: state.xp,
@@ -996,11 +1001,11 @@ function loadState() {
   if (!raw) return
   try {
     const d = JSON.parse(raw)
-    if (Array.isArray(d.words)) {
-      // 自动合并：保留已保存的词，同时把 DEFAULT_WORDS 里新增的词补进来
-      const savedSet = new Set(d.words.map(w => w.word.toLowerCase()))
-      const extras = DEFAULT_WORDS.filter(w => !savedSet.has(w.word.toLowerCase()))
-      state.words = [...d.words, ...extras]
+    // 版本不一致：词表重置为最新 DEFAULT_WORDS，保留 XP/金币/进度
+    if (d.ver !== DATA_VERSION) {
+      state.words = [...DEFAULT_WORDS]
+    } else if (Array.isArray(d.words)) {
+      state.words = d.words
     }
     if (d.progress) state.progress = d.progress
     if (typeof d.xp === "number") state.xp = d.xp
