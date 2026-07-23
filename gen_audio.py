@@ -45,6 +45,11 @@ WORDS = [
     "fortunately", "headquarters", "hemisphere", "horizontal", "infrastructure",
     "millennium", "neighborhood", "perpendicular", "surveillance",
     "topography", "vicinity", "wilderness",
+    # 新增 20 词
+    "appreciate", "calculate", "collaborate", "consequence", "demonstrate",
+    "distribute", "efficiency", "eliminate", "enthusiastic", "equivalent",
+    "evaluate", "evidence", "exaggerate", "exception", "navigate",
+    "obstacle", "particular", "perspective", "phenomenon", "privilege",
 ]
 
 async def generate_word(word: str, semaphore: asyncio.Semaphore):
