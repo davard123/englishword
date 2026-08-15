@@ -50,6 +50,27 @@ WORDS = [
     "distribute", "efficiency", "eliminate", "enthusiastic", "equivalent",
     "evaluate", "evidence", "exaggerate", "exception", "navigate",
     "obstacle", "particular", "perspective", "phenomenon", "privilege",
+    # 新增 100 词
+    "absolute", "academic", "accumulate", "accurate", "achievement",
+    "adequate", "admission", "advantage", "adventure", "advertise",
+    "advocate", "allocate", "ambiguous", "analyze", "ancestor",
+    "anticipate", "apology", "apparent", "appropriate", "argument",
+    "arrangement", "assemble", "assembly", "assignment", "assistance",
+    "assumption", "attachment", "attendance", "attraction", "authority",
+    "available", "awareness", "battery", "behavior", "beneficiary",
+    "candidate", "capacity", "carrier", "celebrity", "ceremony",
+    "charity", "citizen", "classify", "collection", "comedy",
+    "commentary", "commission", "commodity", "companion", "comparison",
+    "completely", "component", "compromise", "concentrate", "confident",
+    "consensus", "consider", "construction", "consultant", "consumer",
+    "container", "continent", "contradiction", "contribute", "controversy",
+    "corporation", "corporate", "correlation", "creation", "critical",
+    "cultural", "currency", "customer", "declaration", "dedicate",
+    "delivery", "democracy", "department", "dependent", "deposit",
+    "designer", "develop", "devotion", "dialogue", "diploma",
+    "directory", "discussion", "discover", "disposal", "division",
+    "document", "domestic", "dominant", "dramatic", "economy",
+    "educator", "effective", "efficient", "electric", "emotion",
 ]
 
 async def generate_word(word: str, semaphore: asyncio.Semaphore):
