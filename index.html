@@ -1002,7 +1002,7 @@ const DEFAULT_WORDS = [
 
 const PLAYER_HEARTS = 3
 const STORAGE_KEY = "spelling-quest-v3"
-const DATA_VERSION = 6   // 改版本号会自动重置词表为最新 DEFAULT_WORDS
+const DATA_VERSION = 7   // 改版本号会自动重置词表为最新 DEFAULT_WORDS（进度按单词文本自动迁移）
 const DAILY_GOAL = 10  // 每日答对目标
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1121,13 +1121,40 @@ function loadState() {
   if (!raw) return
   try {
     const d = JSON.parse(raw)
-    // 版本不一致：词表重置为最新 DEFAULT_WORDS，保留 XP/金币/进度
+    // 版本不一致：词表重置为最新 DEFAULT_WORDS；
+    // 旧版进度以"索引"为 key，词表变化后会错位 —— 这里按"单词文本"迁移，
+    // 只保留仍存在于新词表中的单词的进度（错位/已删除单词的进度一并清理）
     if (d.ver !== DATA_VERSION) {
       state.words = [...DEFAULT_WORDS]
+      const oldWords = Array.isArray(d.words) ? d.words : null
+      const oldProg  = d.progress || {}
+      const migrated = {}
+      const newSet   = new Set(DEFAULT_WORDS.map((w) => w.word))
+      if (oldWords) {
+        oldWords.forEach((w, i) => {
+          const p = oldProg[i]
+          if (w && w.word && p && typeof p === "object" && newSet.has(w.word)) {
+            migrated[w.word] = p
+          }
+        })
+      }
+      state.progress = migrated
     } else if (Array.isArray(d.words)) {
       state.words = d.words
+      // 同版本但进度还是索引 key（极老数据）：按当前词表转换为单词 key
+      if (d.progress) {
+        const keys = Object.keys(d.progress)
+        if (keys.length > 0 && /^\d+$/.test(keys[0])) {
+          const prog = d.progress
+          const migrated = {}
+          keys.forEach((k) => {
+            const w = state.words[Number(k)]
+            if (w && w.word) migrated[w.word] = prog[k]
+          })
+          state.progress = migrated
+        }
+      }
     }
-    if (d.progress) state.progress = d.progress
     if (typeof d.xp === "number") state.xp = d.xp
     if (typeof d.coins === "number") state.coins = d.coins
     if (typeof d.questIndex === "number") state.questIndex = d.questIndex
@@ -1137,14 +1164,16 @@ function loadState() {
   } catch {}
 }
 
+// 进度以"单词文本"为 key（而非索引），词表增删/重排后进度依然跟着单词走
 function getProgress(idx) {
-  if (!state.progress[idx])
-    state.progress[idx] = {
+  const key = (state.words[idx] && state.words[idx].word) || String(idx)
+  if (!state.progress[key])
+    state.progress[key] = {
       correct: 0, wrong: 0, lastSeen: 0, mastered: false,
       consecutiveCorrect: 0,
       firstCorrect: 0,    // 第一次拼对的时间戳（用于判定"是否经过时间检验"）
     }
-  return state.progress[idx]
+  return state.progress[key]
 }
 
 // 真正掌握的标准（科学版）:
@@ -1174,14 +1203,23 @@ function pickNextWord(excludeIds = []) {
   const mastered  = items.filter((it) => it.p.mastered)
                          .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
 
-  // 权重抽样: 35% 错词, 40% 新词, 20% 学习中, 5% 已掌握（防遗忘）
-  // 关键: 即使有大量错词，每次也保证 40% 概率出新词
+  // 权重抽样: 优先学新词！
+  //  - 还有没学过的词时: 70% 新词, 18% 错词, 9% 学习中, 3% 已掌握（防遗忘）
+  //  - 新词全部见过后: 回到复习节奏 40% 错词, 30% 学习中, 30% 已掌握
+  const hasUnseen = unseen.length > 0
   const r = Math.random()
   let pool = null
-  if (r < 0.35 && trouble.length > 0)        pool = trouble
-  else if (r < 0.75 && unseen.length > 0)    pool = unseen
-  else if (r < 0.95 && inProg.length > 0)    pool = inProg
-  else if (mastered.length > 0)              pool = mastered
+  if (hasUnseen) {
+    if      (r < 0.70 && unseen.length > 0)   pool = unseen
+    else if (r < 0.88 && trouble.length > 0)  pool = trouble
+    else if (r < 0.97 && inProg.length > 0)   pool = inProg
+    else if (mastered.length > 0)             pool = mastered
+  } else {
+    if      (r < 0.40 && trouble.length > 0)  pool = trouble
+    else if (r < 0.70 && inProg.length > 0)   pool = inProg
+    else if (mastered.length > 0)             pool = mastered
+    else                                      pool = trouble.length ? trouble : items
+  }
 
   // Fallback: 按优先级降级
   if (!pool || pool.length === 0) {
@@ -1190,6 +1228,11 @@ function pickNextWord(excludeIds = []) {
          : inProg.length    > 0 ? inProg
          : mastered.length  > 0 ? mastered
          : items
+  }
+  // 新词从整个池子随机选（保证覆盖所有新词，不会总卡在前几个）
+  // 复习类池子按"最久没见"排序取前 3 个随机
+  if (pool === unseen) {
+    return pool[Math.floor(Math.random() * pool.length)].idx
   }
   const top = pool.slice(0, Math.min(3, pool.length))
   return top[Math.floor(Math.random() * top.length)].idx
@@ -1924,7 +1967,7 @@ let troubleOnlyMode = false   // true 时只从错词池抽词
 function renderStatsPanel() {
   const buckets = { trouble: [], almost: [], progress: [], mastered: [], unseen: [] }
   state.words.forEach((w, idx) => {
-    const p = state.progress[idx]
+    const p = state.progress[w.word]   // 进度按单词文本存
     if (!p || (p.correct === 0 && p.wrong === 0)) {
       buckets.unseen.push({ w, idx, p: null })
     } else if (p.mastered) {
