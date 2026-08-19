@@ -1141,11 +1141,13 @@ function loadState() {
       state.progress = migrated
     } else if (Array.isArray(d.words)) {
       state.words = d.words
-      // 同版本但进度还是索引 key（极老数据）：按当前词表转换为单词 key
+      // 同版本：先把存档的进度加载回来
       if (d.progress) {
-        const keys = Object.keys(d.progress)
+        state.progress = d.progress
+        // 兼容极老数据：进度还是索引 key 时，按当前词表转换为单词 key
+        const keys = Object.keys(state.progress)
         if (keys.length > 0 && /^\d+$/.test(keys[0])) {
-          const prog = d.progress
+          const prog = state.progress
           const migrated = {}
           keys.forEach((k) => {
             const w = state.words[Number(k)]
