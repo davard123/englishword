@@ -1002,7 +1002,7 @@ const DEFAULT_WORDS = [
 
 const PLAYER_HEARTS = 3
 const STORAGE_KEY = "spelling-quest-v3"
-const DATA_VERSION = 7   // 改版本号会自动重置词表为最新 DEFAULT_WORDS（进度按单词文本自动迁移）
+const DATA_VERSION = 8   // 8: 把前140词标记为已完成，直接从第141个新词开始出题
 const DAILY_GOAL = 10  // 每日答对目标
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1130,14 +1130,35 @@ function loadState() {
       const oldProg  = d.progress || {}
       const migrated = {}
       const newSet   = new Set(DEFAULT_WORDS.map((w) => w.word))
+      // 兼容两种 key：索引 key（老版）+ 单词文本 key（v7+）
       if (oldWords) {
         oldWords.forEach((w, i) => {
           const p = oldProg[i]
-          if (w && w.word && p && typeof p === "object" && newSet.has(w.word)) {
+          if (w && w.word && p && typeof p === "object" && newSet.has(w.word))
             migrated[w.word] = p
-          }
         })
       }
+      Object.keys(oldProg).forEach((k) => {
+        if (newSet.has(k) && !migrated[k] && typeof oldProg[k] === "object")
+          migrated[k] = oldProg[k]
+      })
+      // v8：把前 SKIP_COUNT 个标记为"已完成"，让选词直接跳到新词开头
+      //   字段填到满足 checkMastered（答对≥2 + 连对≥2 + 首对距今≥20min），
+      //   这样 mastered 标记稳定，答对不会变、答错才取消（合理：忘了该复习）
+      const SKIP_COUNT = 140
+      const OLD_TS = Date.now() - 3 * 3600 * 1000   // 3 小时前
+      DEFAULT_WORDS.forEach((w, i) => {
+        if (i < SKIP_COUNT) {
+          const p = migrated[w.word] || {}
+          p.correct = Math.max(p.correct || 0, 2)
+          p.consecutiveCorrect = Math.max(p.consecutiveCorrect || 0, 2)
+          p.wrong = p.wrong || 0
+          p.firstCorrect = p.firstCorrect || OLD_TS
+          p.lastSeen = p.lastSeen || OLD_TS
+          p.mastered = true
+          migrated[w.word] = p
+        }
+      })
       state.progress = migrated
     } else if (Array.isArray(d.words)) {
       state.words = d.words
