@@ -1217,29 +1217,34 @@ function pickNextWord(excludeIds = []) {
                           .filter((it) => !excludeIds.includes(it.idx))
   if (items.length === 0) return Math.floor(Math.random() * state.words.length)
 
-  // 分桶
-  const trouble   = items.filter((it) => it.p.wrong > 0 && !it.p.mastered)
-                         .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
+  // 分桶（与统计面板的「快掌握/学习中」一致）
   const unseen    = items.filter((it) => it.p.correct === 0 && it.p.wrong === 0)
-  const inProg    = items.filter((it) => it.p.correct > 0 && !it.p.mastered && it.p.wrong === 0)
+  const almost    = items.filter((it) => it.p.correct >= 2 && it.p.consecutiveCorrect >= 2 && !it.p.mastered) // 快掌握了：只差时间检验
+                         .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
+  const trouble   = items.filter((it) => it.p.wrong > 0 && !it.p.mastered && !(it.p.correct >= 2 && it.p.consecutiveCorrect >= 2))
+                         .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
+  const inProg    = items.filter((it) => it.p.correct > 0 && !it.p.mastered && it.p.wrong === 0 && !(it.p.correct >= 2 && it.p.consecutiveCorrect >= 2)) // 学习中
                          .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
   const mastered  = items.filter((it) => it.p.mastered)
                          .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
 
-  // 权重抽样: 优先学新词！
-  //  - 还有没学过的词时: 70% 新词, 18% 错词, 9% 学习中, 3% 已掌握（防遗忘）
-  //  - 新词全部见过后: 回到复习节奏 40% 错词, 30% 学习中, 30% 已掌握
+  // 权重抽样: 新词 + 复习均衡，避免"见过一次的词再也不会出现"
+  //  - 还有新词时: 45% 新词 / 20% 快掌握 / 20% 学习中 / 12% 错词 / 3% 已掌握（防遗忘）
+  //    （快掌握 + 学习中合计 40%+，保证正在学的词有足够练习能"毕业"）
+  //  - 新词全部见过后: 复习节奏 35% 错词 / 20% 快掌握 / 20% 学习中 / 25% 已掌握
   const hasUnseen = unseen.length > 0
   const r = Math.random()
   let pool = null
   if (hasUnseen) {
-    if      (r < 0.70 && unseen.length > 0)   pool = unseen
-    else if (r < 0.88 && trouble.length > 0)  pool = trouble
-    else if (r < 0.97 && inProg.length > 0)   pool = inProg
+    if      (r < 0.45 && unseen.length > 0)   pool = unseen
+    else if (r < 0.65 && almost.length > 0)   pool = almost
+    else if (r < 0.85 && inProg.length > 0)   pool = inProg
+    else if (r < 0.97 && trouble.length > 0)  pool = trouble
     else if (mastered.length > 0)             pool = mastered
   } else {
-    if      (r < 0.40 && trouble.length > 0)  pool = trouble
-    else if (r < 0.70 && inProg.length > 0)   pool = inProg
+    if      (r < 0.35 && trouble.length > 0)  pool = trouble
+    else if (r < 0.55 && almost.length > 0)   pool = almost
+    else if (r < 0.75 && inProg.length > 0)   pool = inProg
     else if (mastered.length > 0)             pool = mastered
     else                                      pool = trouble.length ? trouble : items
   }
@@ -1247,6 +1252,7 @@ function pickNextWord(excludeIds = []) {
   // Fallback: 按优先级降级
   if (!pool || pool.length === 0) {
     pool = unseen.length    > 0 ? unseen
+         : almost.length    > 0 ? almost
          : trouble.length   > 0 ? trouble
          : inProg.length    > 0 ? inProg
          : mastered.length  > 0 ? mastered
