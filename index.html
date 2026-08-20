@@ -1228,18 +1228,18 @@ function pickNextWord(excludeIds = []) {
   const mastered  = items.filter((it) => it.p.mastered)
                          .sort((a,b) => (a.p.lastSeen||0) - (b.p.lastSeen||0))
 
-  // 权重抽样: 新词 + 复习均衡，避免"见过一次的词再也不会出现"
-  //  - 还有新词时: 45% 新词 / 20% 快掌握 / 20% 学习中 / 12% 错词 / 3% 已掌握（防遗忘）
-  //    （快掌握 + 学习中合计 40%+，保证正在学的词有足够练习能"毕业"）
+  // 权重抽样: 优先巩固已学/做错的词，新词慢慢来
+  //  - 还有没学过的词时: 35% 学习中 / 30% 错词 / 15% 快掌握 / 15% 新词 / 5% 已掌握
+  //    （学习中 + 错词合计 65% 优先，先把见过/做错的练扎实，新词只少量穿插）
   //  - 新词全部见过后: 复习节奏 35% 错词 / 20% 快掌握 / 20% 学习中 / 25% 已掌握
   const hasUnseen = unseen.length > 0
   const r = Math.random()
   let pool = null
   if (hasUnseen) {
-    if      (r < 0.45 && unseen.length > 0)   pool = unseen
-    else if (r < 0.65 && almost.length > 0)   pool = almost
-    else if (r < 0.85 && inProg.length > 0)   pool = inProg
-    else if (r < 0.97 && trouble.length > 0)  pool = trouble
+    if      (r < 0.35 && inProg.length > 0)   pool = inProg
+    else if (r < 0.65 && trouble.length > 0)  pool = trouble
+    else if (r < 0.80 && almost.length > 0)   pool = almost
+    else if (r < 0.95 && unseen.length > 0)   pool = unseen
     else if (mastered.length > 0)             pool = mastered
   } else {
     if      (r < 0.35 && trouble.length > 0)  pool = trouble
@@ -1249,12 +1249,12 @@ function pickNextWord(excludeIds = []) {
     else                                      pool = trouble.length ? trouble : items
   }
 
-  // Fallback: 按优先级降级
+  // Fallback: 按优先级降级（学习中/错词优先，新词最后兜底）
   if (!pool || pool.length === 0) {
-    pool = unseen.length    > 0 ? unseen
-         : almost.length    > 0 ? almost
+    pool = inProg.length    > 0 ? inProg
          : trouble.length   > 0 ? trouble
-         : inProg.length    > 0 ? inProg
+         : almost.length    > 0 ? almost
+         : unseen.length    > 0 ? unseen
          : mastered.length  > 0 ? mastered
          : items
   }
