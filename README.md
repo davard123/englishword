@@ -1,45 +1,46 @@
 # Spelling Quest ⚔️
 
-A spelling battle game for 5th-grade English learners. Built for one specific kid; works offline; no accounts; deploys as a static site.
+A spelling game for 5th graders. Single static page, works offline, no accounts.
 
-**Live:** https://word.fopusha.com (or https://englishword.pages.dev)
+**Live:** https://word.fopusha.com
 
-## What it is
+## How it plays
 
-5th graders who are native English speakers but spell multi-syllable words badly need spaced practice, not phonics drills. This is a single HTML page that wraps spelling practice in a boss-battle game:
+Home screen → **Daily Quest** (~8 min), a Duolingo-style path of 5 stages:
 
-- Pick a word from a list of 40 hard 5th-grade words (or paste your own list)
-- Each battle = one monster (15 of them, ending with the boss dragon)
-- Spell correctly → attack the monster
-- Spell wrong → lose a heart
-- Defeat the monster → coins + XP
-- Custom on-screen keyboard (no iOS autocomplete cheating)
+1. 📖 **Learn new words**: guess first (skipped if already known), then UK-school **Look · Say · Cover · Write · Check**
+2. 🎮 **Mini-game** (random)
+3. ✍️ **Dictation checkpoint**: hear the word, type it all; mistakes are corrected by re-typing
+4. 🎮 **Mini-game** (a different one)
+5. 👾 **Boss dictation**: every correct word hits the monster; beat it to add it to the collection (✨ shiny if all first-try)
 
-3 challenge modes randomly mixed per attack:
-- 🎧 Listen & Spell — hear word, type full spelling
-- 🧩 Puzzle — drag syllables in order
-- ⚠️ Trap Zones — fill the hard letters in skeleton word
+Mini-games: 🫧 Bubble Pop · 🔍 Spot the right spelling · 🧩 Syllable puzzle · 🕳️ Fill the tricky letters · ⚡ Speed match
 
-## Mastery (real spaced repetition)
+Also: 🎮 Arcade (free play), 📝 Spelling test (school-style, results at the end), 📚 Word book, 🏆 Collection with 24 monsters + 🎁 pet chests bought with coins, 🔥 daily streak.
 
-A word is mastered only when:
-1. answered correctly ≥ 2 times,
-2. last two attempts in a row both correct,
-3. ≥ 20 minutes between first ever correct and now.
+## Learning model
 
-This forces the kid to come back to a word at a later session — not just speed-tap two correct answers in a row to fake it.
+- Only **dictation** changes a word's level; games are practice.
+- Leitner spaced repetition: correct → next box (review after 1 / 3 / 7 / 16 / 35 days), wrong → box 1.
+  A word is "mastered" once it reaches box 4, meaning it was still right after a 3-day gap.
+
+## Words
+
+`words.js`: 413 words across 4 levels. Levels 1–2 include the UK National Curriculum
+Year 3–4 and Year 5–6 statutory spelling lists (US spelling). Parents can paste the school's
+weekly list in ⚙ settings; those words are taught first.
+
+## Audio
+
+`audio/*.mp3` (edge-tts, en-US-JennyNeural); any word without an MP3 uses the browser's voice.
+After adding words, run:
+
+```bash
+pip install edge-tts
+python gen_audio.py        # generates missing MP3s + rewrites audio/manifest.js
+```
 
 ## Tech
 
-- Single `index.html` (vanilla JS, no build)
-- Web Speech API for TTS (iOS native voices, no API key)
-- Web Audio API for SFX (generated, no audio files needed)
-- `localStorage` for persistence
-- Optional `monsters/*.png` for nicer art (falls back to emoji)
-- Optional `audio/*.mp3` for BGM
-
-## Deploy
-
-```bash
-wrangler pages deploy . --project-name=englishword --commit-dirty=true --branch=main
-```
+Vanilla JS in `index.html` + `words.js`, `localStorage` for progress (old v3 saves are migrated automatically),
+optional `monsters/<id>.png` art (falls back to emoji).
