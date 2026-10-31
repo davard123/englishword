@@ -459,9 +459,10 @@
 <div class="overlay" id="overlay"><div class="panel" id="overlay-card"></div></div>
 <div class="modal-backdrop" id="modal"><div class="modal" id="modal-card"></div></div>
 
-<script src="words.js?v=11"></script>
+<script src="words.js?v=12"></script>
 <script src="audio/manifest.js?v=9"></script>
-<script src="td.js?v=11"></script>
+<script src="rules.js?v=12"></script>
+<script src="td.js?v=12"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // 设计思路（参考 Spelling Shed / Duolingo / Blooket 等孩子爱用的产品）：
@@ -1603,6 +1604,7 @@ function home() {
       <div class="hero-sub">单词怪只怕拼写！打对字母 = 射魔法弹 ⚡${due ? `<br>🔁 ${due} 个单词等着复习` : ""}</div>
       <button class="big-btn" id="start">⚔️ 开战！</button>
       <button class="btn btn-ghost full" id="td-mapbtn">🗺️ 关卡地图 · 🛠️ 军械库</button>
+      <button class="btn btn-ghost full" id="rule-btn">🧪 魔法规则关 · 后缀 / 前缀 / 词根（${Object.keys(S.rules || {}).length}/${RULE_LEVELS.length}）</button>
     </div>
     <div class="daily-row">
       <span style="font-size:24px">${today ? "✅" : "📅"}</span>
@@ -1617,6 +1619,7 @@ function home() {
     </div>`
   $("#start").onclick = () => tdStart(lv)
   $("#td-mapbtn").onclick = tdMap
+  $("#rule-btn").onclick = ruleMap
   $("#t-quest").onclick = startQuest
   $("#t-arcade").onclick = arcade
   $("#t-test").onclick = testMenu

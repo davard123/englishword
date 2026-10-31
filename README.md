@@ -7,15 +7,26 @@ A spelling game for 5th graders. Single static page, works offline, no accounts.
 ## 🏰 Word Tower Defense (main mode, `td.js`)
 
 - Monsters walk down a path toward your castle, and each one carries a word. **Only spelling kills them:**
-  every correct letter fires a magic bolt (one HP segment per letter), and finishing the word blows the monster up.
-  A wrong letter misfires and the monster speeds up. Two misses at the same letter reveal it as a hint.
-- 👻 Ghost monsters are this level's new words: their letters are shown faintly to copy. They come back later in the level as normal monsters, with the word hidden.
+  type the whole word and press ⚔️; a correct answer fires a volley that destroys the monster.
+  A wrong answer misfires, shows the correct spelling and why, and the kid re-types it to finish the monster.
+- 👻 Ghost monsters are this level's new words: the kid guesses first, then sees and copies the answer. They come back later in the level with the word hidden.
 - Towers can't kill word monsters; they buy time: 🏹 archer (shoots gold-stealing bats), ❄️ ice (slows),
   💣 cannon (knocks monsters back), ⚡ tesla (stuns). Gold comes from kills and is spent on building and upgrading.
 - Every 6th level is a 🏯 **siege**: each spelled word knocks a brick off the enemy fortress, and the enemy cannon fires on a timer.
   A perfect word gives a 🛡️ shield. Knock down every brick to capture the boss for the collection.
 - A word counts as a correct dictation only when it's spelled with no wrong letters. Missed words return in the next wave.
 - 5 chapters with 6 levels each, then they loop at higher difficulty. Stars, an 🛠️ armory with permanent upgrades, and coins.
+
+## 🧪 Magic Rule Levels (`rules.js`)
+
+42 levels that teach spelling *rules* instead of single words: 21 suffix levels (plurals, -ed, -ing, -er/-est, -ly, -ful, -less,
+-ness, -ment, -al, -able/-ible, -tion/-sion, -ous, -y, -er/-or, -ive), 9 prefix levels (un-, dis-, mis-, re-, pre-/fore-/post-,
+in-/im-/il-/ir-, over-/under-/out-, super-/sub-/inter-…, number prefixes) and 12 root levels (port, spect, rupt, tract, dict,
+scrib, struct, vis, ject, Greek roots, -logy, aud/voc). Each level opens with a rule card. Monsters show a formula such as `stop + ed`,
+and the kid types the result. 👑 Exceptions (go → went, true → truly) appear as elite monsters. A wrong answer shows which rule applies.
+
+In every mode the kid types the **whole word** and then presses ⚔️ to fire. A wrong answer shows the reason and the changed letters,
+and the kid re-types the correct spelling to finish the monster. New words: the kid tries first, then sees the answer, then copies it.
 
 ## How it plays
 

@@ -94,7 +94,9 @@ function tdSfx(kind) {
   .td-slots { display: flex; justify-content: center; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
   .td-slot { width: 21px; height: 29px; border-bottom: 3px solid #c9b8a0; font-size: 22px; font-weight: 900; text-align: center; line-height: 27px; color: #c9b8a0; }
   .td-gap { width: 12px; }
-  .td-slot.ok { color: #2d8a4a; border-color: #2d8a4a; }
+  .td-slot.ok, .td-slot.typed { color: #2a2118; border-color: #6b3eb0; }
+  .td-slot.last { animation: pop .2s; }
+  .td-slot.mark { color: #ff7043; border-color: #ff7043; }
   .td-slot.cur { border-color: #6b3eb0; }
   .td-slot.ghost { color: #cdbfae; }
   .td-slot.hint { color: #ff8a00; }
@@ -137,6 +139,7 @@ function tdMap() {
   el.innerHTML = `<div class="panel">
     <div class="sub">单词怪只怕拼写！打对一个字母射一发魔法弹，拼完整个词它就爆炸。<br>防御塔帮你减速、击退、打蝙蝠，争取时间。每 6 关是 🏯 攻城战。</div>
     <button class="big-btn" id="td-go">⚔️ 第 ${d.level} 关 · 开战！</button>
+    <button class="btn btn-ghost full" id="td-rules">🧪 魔法规则关（后缀 · 前缀 · 词根）</button>
     ${chapters.slice().reverse().map((c) => {
       const ch = TD_CHAPTERS[c % TD_CHAPTERS.length]
       return `<div class="td-map-ch"><h3>${ch.icon} 第 ${c + 1} 章 · ${ch.name}</h3><div class="td-nodes">${[1, 2, 3, 4, 5, 6].map((k) => {
@@ -150,6 +153,7 @@ function tdMap() {
     <div class="opt-list" style="margin-top:0">${upgHTML}</div>
   </div>`
   $("#td-go").onclick = () => tdStart(d.level)
+  $("#td-rules").onclick = ruleMap
   el.querySelectorAll("[data-lv]").forEach((b) => { b.onclick = () => tdStart(+b.dataset.lv) })
   el.querySelectorAll("[data-upg]").forEach((b) => {
     b.onclick = () => {
@@ -229,19 +233,19 @@ function tdStart(lv) {
   keyHandler = { enter: () => tdBattle(lv, plan) }
 }
 
-function tdBattle(lv, plan) {
+function tdBattle(lv, plan, rule = null) {
   gen++
   keyHandler = null
   stopSpeech()
   const d = tdData()
-  const siege = tdIsSiege(lv)
-  const ch = tdChapter(lv)
-  const map = TD_MAPS[(lv - 1) % TD_MAPS.length]
+  const siege = !rule && tdIsSiege(lv)
+  const ch = rule ? TD_CHAPTERS[{ suffix: 0, prefix: 1, root: 2 }[rule.group] || 0] : tdChapter(lv)
+  const map = TD_MAPS[(rule ? RULE_LEVELS.indexOf(rule) : lv - 1) % TD_MAPS.length]
   const hearts = 5 + (d.upg.heart || 0)
   TD = {
-    gen, lv, siege, ch, map, plan,
+    gen, lv, siege, ch, map, plan, rule,
     hearts, heartsMax: hearts, gold: 120 + 30 * (d.upg.gold || 0), goldEarned: 0,
-    phase: "build", waveNo: 0, waves: siege ? [] : tdWaves(plan.fresh, plan.hidden),
+    phase: "build", waveNo: 0, waves: rule ? tdRuleWaves(rule) : siege ? [] : tdWaves(plan.fresh, plan.hidden),
     queue: [], retry: [], spawnT: 0, minions: 0, minionT: 0,
     mons: [], shots: [], parts: [], texts: [], towers: map.spots.map(() => null),
     target: null, res: new Map(), paused: false, menu: -1, last: 0, t: 0, nextId: 1,
@@ -273,16 +277,17 @@ function tdBattle(lv, plan) {
     <div class="td-hud"><button class="quit" id="td-pause">⏸</button><div class="td-hud-text" id="td-hud"></div></div>
     <div class="td-stage" id="td-stage"><canvas id="td-cv"></canvas><div class="td-pop" id="td-pop"></div><div class="td-banner" id="td-banner"></div></div>
     <div class="td-panel" id="td-panel"></div>
-    <div id="td-kb">${kbHTML(null)}</div>`
+    <div id="td-kb">${kbHTML("⚔️ 发射")}</div>`
   TD.cv = $("#td-cv"); TD.ctx = TD.cv.getContext("2d")
   tdLayout()
   $("#td-pause").onclick = tdPauseMenu
   TD.cv.addEventListener("pointerdown", tdTap)
-  bindKb($("#td-kb"), { letter: tdLetter, back: () => {}, enter: () => { if (TD && TD.phase === "build") tdStartWave() } })
+  bindKb($("#td-kb"), { letter: tdLetter, back: tdBack, enter: tdSubmit })
   if (siege) {
     tdBanner(`🏯 攻城战！`, `拼对一个词，投石车就砸掉一块砖。<br>敌人的大炮会定时开火，一次全对能挡下一炮 🛡️<br>砖全部打掉，就能收服 <b>${esc(TD.boss.name)}</b>！`, "⚔️ 开始攻城", tdStartWave)
   } else {
-    tdBanner(`${ch.icon} 第 ${lv} 关`, `单词怪只怕拼写！听发音，把单词打出来。<br>先点地图上的 <b>＋</b> 造防御塔（有 💰${TD.gold}）`, "⚔️ 开始第 1 波", tdStartWave)
+    if (rule) tdBanner(`${rule.icon} ${esc(rule.title)}`, `${rule.group === "root" ? "听发音，用词根把整个词拼出来" : "看算式，用规则拼出变化后的词"}<br>拼完按 <b>⚔️ 发射</b>。小心 👑 特殊字！`, "⚔️ 开始第 1 波", tdStartWave)
+    else tdBanner(`${ch.icon} 第 ${lv} 关`, `单词怪只怕拼写！听发音，把单词打出来。<br>先点地图上的 <b>＋</b> 造防御塔（有 💰${TD.gold}）`, "⚔️ 开始第 1 波", tdStartWave)
   }
   tdPanel()
   requestAnimationFrame(tdLoop)
@@ -292,7 +297,7 @@ function tdLayout() {
   if (!TD) return
   const stage = $("#td-stage")
   const W = app.clientWidth - 16
-  const avail = window.innerHeight - ($("header").offsetHeight || 54) - 34 - 92 - 175 - 40
+  const avail = window.innerHeight - ($("header").offsetHeight || 54) - 34 - 96 - 230 - 40
   const tile = Math.max(22, Math.min(W / TD_COLS, Math.max(avail, 200) / TD_ROWS))
   const dpr = window.devicePixelRatio || 1
   TD.tile = tile
@@ -332,17 +337,21 @@ function tdStartWave() {
 
 function tdSpecies(o, ghost) {
   const n = norm(o.w).length
+  if (o.special) return { e: pick(["🐲", "🧌", "🦖", "🐙"]), sp: 0.75, size: 1.35, big: true }
   if (ghost) return { e: "👻", sp: 0.8, size: 1, big: false }
   if (n <= 5) return { e: pick(["🐺", "🦊", "🐗"]), sp: 1.2, size: 0.95, big: false }
   if (n <= 8) return { e: pick(["👹", "🧟", "🦂", "🐊", "👺"]), sp: 1, size: 1.05, big: false }
   return { e: pick(["🦏", "🐲", "🦍", "🐘"]), sp: 0.8, size: 1.3, big: true }
 }
+function tdNewWordMon(it) {
+  const n = norm(it.o.w).length
+  return { id: TD.nextId++, o: it.o, ghost: !!it.ghost, retry: !!it.retry, hp: n, hpMax: n,
+    typed: "", attempts: 0, copy: false, wrongTyped: "", firing: false, killAt: 0, dead: false }
+}
 function tdSpawnWord(it) {
   const sp = tdSpecies(it.o, it.ghost)
-  const n = norm(it.o.w).length
-  TD.mons.push({ id: TD.nextId++, kind: "word", o: it.o, ghost: it.ghost, retry: !!it.retry, e: sp.e, size: sp.size, big: sp.big,
-    sp: TD.speed * sp.sp, d: 0, hp: n, hpMax: n, typed: "", mistakes: 0, posWrong: 0, hint: false,
-    slowT: 0, stunT: 0, rageT: 0, kbT: 0, dead: false, bob: Math.random() * 6 })
+  TD.mons.push(Object.assign(tdNewWordMon(it), { kind: "word", e: sp.e, size: sp.size, big: sp.big, special: !!it.o.special,
+    sp: TD.speed * sp.sp, d: 0, slowT: 0, stunT: 0, rageT: 0, kbT: 0, bob: Math.random() * 6 }))
 }
 function tdSpawnMinion() {
   TD.mons.push({ id: TD.nextId++, kind: "minion", e: "🦇", size: 0.7, sp: TD.speed * 1.9, d: 0, hp: 2, hpMax: 2,
@@ -357,29 +366,61 @@ function tdPos(d) {
 const tdAlive = (kind) => TD.mons.filter((m) => !m.dead && (!kind || m.kind === kind))
 
 // ═══════════════════════════════════════════════════════════════════════
-// 打字 = 开火
+// 拼写 = 开火：先把整个词打完（可以用 ⌫ 改），按「⚔️ 发射」才判断
+//  · 对 → 一排魔法弹齐射，怪物爆炸
+//  · 错 → 魔法弹打偏，面板告诉你「为什么」（哪条规则 / 哪几个字母），照着正确拼法再打一遍才能消灭它
 // ═══════════════════════════════════════════════════════════════════════
 function tdCur() { return TD.siege ? TD.sw : TD.target }
+function tdCanType(m) { return TD && !TD.paused && TD.phase === "wave" && m && !m.dead && !m.firing }
 function tdLetter(l) {
-  if (!TD || TD.paused || TD.phase !== "wave") return
-  const m = tdCur()
-  if (!m || m.dead) return
-  const w = norm(m.o.w), need = w[m.typed.length]
-  const from = TD.siege ? { x: 1.6, y: TD_ROWS - 2.4 } : { x: TD.castle[0], y: TD.castle[1] - 0.4 }
-  if (l === need) {
-    m.typed += l; m.posWrong = 0; m.hint = false
-    m.hp = w.length - m.typed.length
-    TD.shots.push({ x: from.x, y: from.y, m, tx: null, ty: null, v: 14, kind: "bolt", c: "#ffe066" })
-    tdSfx("shoot")
-    if (m.typed.length === w.length) TD.siege ? tdSiegeHit(m) : tdKill(m)
-  } else {
-    m.mistakes++; m.posWrong++; m.rageT = 1.5
-    if (m.posWrong >= 2) m.hint = true
-    const p = TD.siege ? { x: TD_COLS - 2.5, y: 3 } : tdPos(m.d)
-    TD.shots.push({ x: from.x, y: from.y, m: null, tx: p.x + (Math.random() - 0.5) * 2, ty: p.y - 1.2, v: 12, kind: "miss", c: "#bbb" })
-    tdSfx("miss")
-    const pn = $("#td-panel"); pn.classList.remove("shake"); void pn.offsetWidth; pn.classList.add("shake")
+  const m = TD && tdCur()
+  if (!tdCanType(m)) return
+  const w = norm(m.o.w)
+  if (m.typed.length >= w.length) return
+  if (m.copy && l !== w[m.typed.length]) {
+    tdSfx("miss"); const pn = $("#td-panel"); pn.classList.remove("shake"); void pn.offsetWidth; pn.classList.add("shake"); return
   }
+  m.typed += l
+  tone(700 + m.typed.length * 40, 0.04, "triangle", 0.04)
+  if (m.copy && m.typed === w) tdFire(m)
+  tdPanel()
+}
+function tdBack() {
+  const m = TD && tdCur()
+  if (!tdCanType(m)) return
+  m.typed = m.typed.slice(0, -1)
+  tdPanel()
+}
+function tdSubmit() {
+  if (!TD) return
+  if (TD.phase === "build") return tdStartWave()
+  const m = tdCur()
+  if (!tdCanType(m) || !m.typed) return
+  const w = norm(m.o.w)
+  if (m.typed === w) return tdFire(m)
+  const pn = $("#td-panel"); pn.classList.remove("shake"); void pn.offsetWidth; pn.classList.add("shake")
+  tdSfx("miss")
+  const from = TD.siege ? { x: 1.6, y: TD_ROWS - 2.4 } : { x: TD.castle[0], y: TD.castle[1] - 0.4 }
+  const p = TD.siege ? { x: TD_COLS - 2.5, y: 3 } : tdPos(m.d)
+  for (let k = 0; k < 3; k++) TD.shots.push({ x: from.x, y: from.y, m: null, tx: p.x + (Math.random() - 0.5) * 2.5, ty: p.y - 1 - Math.random(), v: 11, kind: "miss", c: "#bbb", wait: k * 0.08 })
+  if (m.copy) { m.typed = ""; tdPanel(); return }
+  m.attempts++
+  m.wrongTyped = m.typed
+  m.typed = ""
+  m.copy = true
+  if (m.kind === "word") m.rageT = 1.5
+  speakWord(m.o.w)
+  tdPanel()
+}
+function tdFire(m) {
+  m.firing = true
+  m.hp = 0
+  const from = TD.siege ? { x: 1.6, y: TD_ROWS - 2.4 } : { x: TD.castle[0], y: TD.castle[1] - 0.4 }
+  const n = Math.min(10, norm(m.o.w).length)
+  for (let k = 0; k < n; k++) TD.shots.push({ x: from.x, y: from.y, m, v: 15, kind: "bolt", c: k % 2 ? "#ffe066" : "#9df", wait: k * 0.05 })
+  tdSfx("shoot")
+  if (m.kind === "word") m.stunT = Math.max(m.stunT, 1)
+  m.killAt = TD.t + 0.45 + n * 0.05
   tdPanel()
 }
 
@@ -389,26 +430,32 @@ function tdRecord(o, field, val) {
   TD.res.set(o.key, r)
   return r
 }
-function tdKill(m) {
-  m.dead = true
-  const perfect = m.mistakes === 0
-  const p = tdPos(m.d)
+// 一只单词怪被消灭：一次拼对才算「默写正确」
+function tdScore(m) {
+  const perfect = m.attempts === 0
   if (m.ghost) {
-    tdRecord(m.o, "learned", true)
-    if (status(m.o) === "new") setBox(m.o, 1)
+    // 新词：先猜。猜对 = 本来就会；猜错 = 看了正确拼法照着打（学会了），后面的波次还会再考
+    tdRecord(m.o, perfect ? "known" : "learned", true)
+    if (!TD.rule) { if (perfect) setBox(m.o, 3); else if (status(m.o) === "new") setBox(m.o, 1) }
   } else if (!m.retry) {
     tdRecord(m.o, "first", perfect)
-    grade(m.o, perfect)
+    if (!TD.rule) grade(m.o, perfect)
     if (!perfect) TD.retry.push({ o: m.o, ghost: false, retry: true })
-  } else tdRecord(m.o, "retryOk", true)
-  const g = 8 + m.hpMax * 2 + (perfect ? 6 : 0)
+  } else tdRecord(m.o, "retryOk", perfect)
+  save()
+  return perfect
+}
+function tdKill(m) {
+  m.dead = true
+  const perfect = tdScore(m)
+  const p = tdPos(m.d)
+  const g = 8 + m.hpMax * 2 + (perfect ? 6 : 0) + (m.special ? 10 : 0)
   TD.gold += g; TD.goldEarned += g
   tdBoom(p.x, p.y, m.big ? 34 : 22, ["#ffd700", "#ff7a00", "#ff3d3d", "#fff"])
   tdFloat(p.x, p.y - 0.6, `+${g}💰`, "#ffd700")
-  if (perfect) { tdFloat(p.x, p.y - 1.2, m.ghost ? "学会了！" : "PERFECT!", "#7CFC00", 1.3); tdSfx("perfect") } else tdSfx("boom")
-  if (!perfect && !m.ghost) tdFloat(p.x, p.y - 1.2, displayWord(m.o), "#fff", 2)
-  save()
-  TD.target = null
+  if (perfect) { tdFloat(p.x, p.y - 1.2, m.ghost ? "本来就会！" : m.special ? "特殊字！PERFECT!" : "PERFECT!", "#7CFC00", 1.3); tdSfx("perfect") }
+  else { tdSfx("boom"); tdFloat(p.x, p.y - 1.2, m.ghost ? "学会了！" : "订正完成", "#fff", 1.3) }
+  if (TD.target === m) TD.target = null
 }
 function tdLeak(m) {
   m.dead = true
@@ -422,15 +469,15 @@ function tdLeak(m) {
   tdFloat(TD.castle[0] - 1, TD.castle[1] - 1.5, displayWord(m.o), "#fff", 2.2)
   tdBoom(TD.castle[0], TD.castle[1], 18, ["#ff3d3d", "#999"])
   tdSfx("leak")
-  if (m.ghost) { tdRecord(m.o, "learned", true); if (status(m.o) === "new") setBox(m.o, 1) }
-  else if (!m.retry) { tdRecord(m.o, "first", false); grade(m.o, false); TD.retry.push({ o: m.o, ghost: false, retry: true }) }
+  if (m.ghost) { tdRecord(m.o, "learned", true); if (!TD.rule && status(m.o) === "new") setBox(m.o, 1) }
+  else if (!m.retry) { tdRecord(m.o, "first", false); if (!TD.rule) grade(m.o, false); TD.retry.push({ o: m.o, ghost: false, retry: true }) }
   save()
   if (TD.target === m) TD.target = null
   if (TD.hearts <= 0) tdEnd(false)
 }
 
 function tdPickTarget() {
-  const ws = tdAlive("word")
+  const ws = tdAlive("word").filter((m) => !m.firing)
   if (!ws.length) return null
   return ws.reduce((a, b) => (b.d > a.d ? b : a))
 }
@@ -441,6 +488,18 @@ function tdSetTarget(m) {
   tdPanel()
 }
 
+// 规则题：答案里和「部件直接拼起来」不一样的字母（stop+ed → stopped 的第二个 p）
+function tdChanged(o) {
+  if (!o.parts) return new Set()
+  const plain = o.parts.join("").toLowerCase(), w = norm(o.w)
+  const [, kb] = lcsMarks(plain, w)
+  const set = new Set()
+  kb.forEach((ok, i) => { if (!ok) set.add(i) })
+  // 规则「去掉」了字母（bake+ed → baked）时，没有新增字母：标出接口附近
+  if (!set.size && plain !== w) { const j = o.parts[0].length - 1; if (j >= 0 && j < w.length) set.add(j) }
+  return set
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // 下方拼写面板
 // ═══════════════════════════════════════════════════════════════════════
@@ -448,50 +507,66 @@ function tdPanel() {
   const pn = $("#td-panel")
   if (!pn || !TD) return
   const m = tdCur()
-  if (TD.phase === "build" || !m || m.dead) {
+  if (TD.phase === "build" || !m || m.dead || m.firing) {
     const msg = TD.phase === "build"
       ? (TD.siege ? "准备攻城！" : `🔨 点地图上的 ＋ 造塔（💰${TD.gold}），然后开始第 ${TD.waveNo + 1} 波`)
-      : "👀 等待敌人出现…"
+      : m && m.firing ? "⚡ 发射！" : "👀 等待敌人出现…"
     const key = "idle" + msg
     if (TD.panelKey === key) return
     TD.panelKey = key
-    pn.innerHTML = `<div class="td-idle">${msg}</div>${TD.phase === "build" && TD.waveNo > 0 ? `<button class="btn btn-primary" id="td-next">下一波 ▶</button>` : ""}`
-    const nb = $("#td-next"); if (nb) nb.onclick = tdStartWave
+    pn.innerHTML = `<div class="td-idle">${msg}</div>`
     return
   }
-  const w = norm(m.o.w)
-  const key = `${m.id}|${m.typed}|${m.hint}`
+  const key = `${m.id}|${m.typed}|${m.copy}`
   if (TD.panelKey === key) return
   TD.panelKey = key
-  const clue = m.ghost ? `👻 新词！照着灰色字母打出来` : (blankSentence(m.o) || (m.o.m ? esc(m.o.m) : "听发音拼出来"))
+  const o = m.o
+  let clue, sub = ""
+  if (m.copy) {
+    // 错了：告诉孩子为什么
+    const reason = o.parts
+      ? `${esc(o.parts.join(" + "))} = <b>${esc(displayWord(o))}</b>${o.why ? `<br>💡 ${esc(o.why)}` : ""}`
+      : `✅ <b>${esc(displayWord(o))}</b> · ${o.s.map(esc).join(" · ")}`
+    clue = `${m.ghost && !m.wrongTyped ? "" : `<span style="color:#c0392b">❌ ${esc(m.wrongTyped)}</span> → `}${reason}`
+    sub = `照着正确拼法打一遍，消灭它！`
+  } else if (o.parts) {
+    clue = o.root ? `${esc(o.why)} <span style="color:#8d6b4c">· 词根 ${esc(TD.rule.root || "")}</span>` : `<span style="font-size:20px;font-weight:900;color:#6b3eb0">${esc(o.m)}</span> = ?`
+    sub = o.special ? "👑 特殊字！小心规则的例外" : (o.root ? "听发音，把整个词拼出来" : "想想规则，拼出整个词")
+  } else if (m.ghost) {
+    clue = `👻 新词！先猜猜怎么拼（猜错没关系）`
+    sub = o.m ? esc(o.m) : ""
+  } else {
+    clue = blankSentence(o) || (o.m ? esc(o.m) : "听发音拼出来")
+    sub = o.m && blankSentence(o) ? esc(o.m) : ""
+  }
+  // 订正时：标出容易错 / 规则改变的字母
+  const mark = m.copy ? (o.parts ? tdChanged(o) : new Set(trickySpots(o))) : new Set()
+  let i = 0
+  const slots = [...displayWord(o)].map((ch, ci) => {
+    if (!/[a-z]/i.test(ch)) return `<span class="td-gap"></span>`
+    const k = i++, c = esc(ch), t = m.typed[k]
+    const markIdx = o.parts ? k : ci
+    if (t) return `<span class="td-slot typed ${k === m.typed.length - 1 ? "last" : ""}">${esc(m.copy ? ch : t)}</span>`
+    if (m.copy) return `<span class="td-slot ghost ${mark.has(markIdx) ? "mark" : ""} ${k === m.typed.length ? "cur" : ""}">${c}</span>`
+    return `<span class="td-slot ${k === m.typed.length ? "cur" : ""}"></span>`
+  }).join("")
   pn.innerHTML = `
     <button class="td-say" id="td-say">🔊</button>
     <div class="td-mid">
       <div class="td-clue">${clue}</div>
-      ${m.o.m && (m.ghost || blankSentence(m.o)) ? `<div class="td-meaning">${esc(m.o.m)}</div>` : ""}
-      <div class="td-slots">${(() => {
-        // 按显示形式画格子：保留大写，空格画成间隔（New York 不用打空格）
-        let i = 0
-        return [...displayWord(m.o)].map((ch) => {
-          if (!/[a-z]/i.test(ch)) return `<span class="td-gap"></span>`
-          const c = esc(ch), k = i++
-          if (k < m.typed.length) return `<span class="td-slot ok">${c}</span>`
-          if (m.ghost) return `<span class="td-slot ghost ${k === m.typed.length ? "cur" : ""}">${c}</span>`
-          if (k === m.typed.length) return `<span class="td-slot cur ${m.hint ? "hint" : ""}">${m.hint ? c : ""}</span>`
-          return `<span class="td-slot"></span>`
-        }).join("")
-      })()}</div>
+      ${sub ? `<div class="td-meaning">${sub}</div>` : ""}
+      <div class="td-slots">${slots}</div>
     </div>
     <button class="td-slow" id="td-slow" title="慢速">🐢</button>`
-  $("#td-say").onclick = () => speakWord(m.o.w)
-  $("#td-slow").onclick = () => speakWord(m.o.w, { slow: true })
+  $("#td-say").onclick = () => speakWord(o.w)
+  $("#td-slow").onclick = () => speakWord(o.w, { slow: true })
 }
 
 function tdHud() {
   const h = $("#td-hud")
   if (!h) return
   const wave = TD.siege ? `🧱 ${TD.bricks.filter((b) => !b.down).length}/${TD.bricks.length}` : `🌊 ${Math.min(TD.waveNo + (TD.phase === "wave" ? 1 : 0), TD.waves.length) || 1}/${TD.waves.length}`
-  const s = `<span>${TD.ch.icon} 第 <b>${TD.lv}</b> 关</span><span>${wave}</span><span>❤️ <b>${TD.hearts}</b></span><span>💰 <b>${TD.gold}</b></span>${TD.siege && TD.shield ? "<span>🛡️</span>" : ""}`
+  const s = `<span>${TD.rule ? `${TD.rule.icon} <b>${esc(TD.rule.title.split(" ")[0])}</b>` : `${TD.ch.icon} 第 <b>${TD.lv}</b> 关`}</span><span>${wave}</span><span>❤️ <b>${TD.hearts}</b></span><span>💰 <b>${TD.gold}</b></span>${TD.siege && TD.shield ? "<span>🛡️</span>" : ""}`
   if (h._s !== s) { h._s = s; h.innerHTML = s }
 }
 
@@ -568,8 +643,8 @@ function tdPauseMenu() {
     <button class="btn btn-ghost full" id="td-quit">🗺️ 回到地图</button>`
   $("#overlay").classList.add("open")
   $("#td-resume").onclick = () => { $("#overlay").classList.remove("open"); if (TD) { TD.paused = TD.menu >= 0; TD.last = 0 } }
-  $("#td-restart").onclick = () => { $("#overlay").classList.remove("open"); const lv = TD.lv, plan = TD.plan; TD = null; tdBattle(lv, plan) }
-  $("#td-quit").onclick = () => { $("#overlay").classList.remove("open"); TD = null; tdMap() }
+  $("#td-restart").onclick = () => { $("#overlay").classList.remove("open"); const lv = TD.lv, plan = TD.plan, rule = TD.rule; TD = null; tdBattle(lv, plan, rule) }
+  $("#td-quit").onclick = () => { $("#overlay").classList.remove("open"); const r = TD && TD.rule; TD = null; r ? ruleMap() : tdMap() }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -598,6 +673,7 @@ function tdUpdate(dt) {
   // 怪物移动
   for (const m of TD.mons) {
     if (m.dead) continue
+    if (m.firing) { if (TD.t >= m.killAt) tdKill(m); continue }
     m.slowT = Math.max(0, m.slowT - dt); m.stunT = Math.max(0, m.stunT - dt); m.rageT = Math.max(0, m.rageT - dt)
     if (m.kbT > 0) { const k = Math.min(m.kbT, dt * 4); m.d = Math.max(0, m.d - k); m.kbT -= k; continue }
     if (m.stunT > 0) continue
@@ -651,6 +727,7 @@ function tdUpdate(dt) {
 function tdFxUpdate(dt) {
   // 子弹
   for (const s of TD.shots) {
+    if (s.wait > 0) { s.wait -= dt; continue }
     let tx = s.tx, ty = s.ty
     if (s.m) {
       if (TD.siege) { tx = s.m.tx ?? (TD_COLS - 2.5); ty = s.m.ty ?? 3 }
@@ -751,12 +828,14 @@ function tdDraw() {
       ctx.fillStyle = m.ghost ? "#c9b8ff" : "#ff4d4d"; ctx.fillRect(bx, by, bw * (m.hp / m.hpMax), bh)
       if (m.hpMax <= 14) { ctx.fillStyle = "rgba(0,0,0,0.5)"; for (let k = 1; k < m.hpMax; k++) ctx.fillRect(bx + bw * k / m.hpMax, by, 1, bh) }
       if (m.ghost) tdText(ctx, "NEW", x, by + bh + T * 0.17, T * 0.24, "#fff", "#6b3eb0")
+      if (m.special) { tdEmo(ctx, "👑", x, y - size * 0.7, T * 0.42); tdText(ctx, "特殊字", x, by + bh + T * 0.17, T * 0.24, "#ffd700", "#7a3d00") }
     }
   }
   tdDrawFx(ctx, T)
 }
 function tdDrawFx(ctx, T) {
   for (const s of TD.shots) {
+    if (s.wait > 0) continue
     ctx.beginPath(); ctx.arc(s.x * T, s.y * T, s.kind === "ball" ? T * 0.13 : T * 0.08, 0, Math.PI * 2)
     ctx.fillStyle = s.c; ctx.fill()
     if (s.kind === "bolt") { ctx.shadowColor = "#ffe066"; ctx.shadowBlur = 10; ctx.fill(); ctx.shadowBlur = 0 }
@@ -801,8 +880,7 @@ function tdSiegeNext() {
   if (TD.phase === "over") return
   if (!TD.sq.length) return
   const it = TD.sq.shift()
-  const n = norm(it.o.w).length
-  TD.sw = { id: TD.nextId++, o: it.o, typed: "", mistakes: 0, posWrong: 0, hint: false, hp: n, hpMax: n, dead: false }
+  TD.sw = tdNewWordMon(it)
   const top = TD.bricks.filter((b) => !b.down).sort((a, b) => b.r - a.r || a.c - b.c)[0]
   if (top) { const p = tdBrickXY(top); TD.sw.tx = p.x + p.w / 2; TD.sw.ty = p.y + p.h / 2; TD.sw.brick = top }
   speakWord(it.o.w)
@@ -810,10 +888,7 @@ function tdSiegeNext() {
 }
 function tdSiegeHit(m) {
   m.dead = true
-  const perfect = m.mistakes === 0
-  tdRecord(m.o, "first", perfect)
-  grade(m.o, perfect)
-  save()
+  const perfect = tdScore(m)
   TD.rocks.push({ x: 1.6, y: TD_ROWS - 2.4, sx: 1.6, sy: TD_ROWS - 2.4, b: m.brick, t: 0, dur: 0.9 })
   tdSfx("boom")
   if (perfect) { TD.shield = true; tdFloat(3, TD_ROWS - 3.5, "PERFECT! 🛡️", "#7CFC00", 1.4); tdSfx("perfect") }
@@ -823,6 +898,7 @@ function tdSiegeHit(m) {
 }
 function tdSiegeUpdate(dt) {
   if (TD.phase !== "wave") return
+  if (TD.sw && TD.sw.firing && !TD.sw.dead && TD.t >= TD.sw.killAt) tdSiegeHit(TD.sw)
   for (const r of TD.rocks) {
     r.t += dt
     if (r.t >= r.dur && !r.hit) {
@@ -916,9 +992,14 @@ function tdEnd(win) {
   const graded = res.filter((r) => r.first !== undefined)
   const perfectAll = graded.length > 0 && graded.every((r) => r.first)
   let captured = false
+  const rule = TD.rule
+  const nextRule = rule ? RULE_LEVELS[RULE_LEVELS.indexOf(rule) + 1] : null
+  if (win && rule) {
+    S.rules = S.rules || {}
+    S.rules[rule.id] = Math.max(S.rules[rule.id] || 0, stars)
+  }
   if (win) {
-    d.stars[lv] = Math.max(d.stars[lv] || 0, stars)
-    if (lv === d.level) d.level = lv + 1
+    if (!rule) { d.stars[lv] = Math.max(d.stars[lv] || 0, stars); if (lv === d.level) d.level = lv + 1 }
     addCoins(Math.round(TD.goldEarned / 10) + stars * 5)
     if (TD.siege) {
       captured = true
@@ -943,14 +1024,87 @@ function tdEnd(win) {
       ${captured ? `<div class="sub">${esc(TD.boss.name)} 加入了你的图鉴${perfectAll ? "（闪光版 ✨）" : ""}</div>` : ""}
       <div class="reward-box">+${questCoins} 🪙</div>
       <div class="word-list" style="max-height:30vh;overflow:auto">${res.map((r) => `<div class="wl-row"><b>${esc(displayWord(r.o))}</b><span class="wl-meta ${r.first === false ? "bad" : ""}">${
-        r.first === true ? "✅ 一次拼对" : r.first === false ? "🔁 拼错过，会再复习" : "👻 新学"}</span></div>`).join("")}</div>
+        r.first === true ? "✅ 一次拼对" : r.first === false ? "🔁 拼错过，会再复习" : r.known ? "🌟 本来就会" : "👻 新学"}</span></div>`).join("")}</div>
       ${wrong.length ? `<button class="btn btn-secondary full" id="td-fix">✍️ 订正 ${wrong.length} 个错词</button>` : ""}
-      <button class="big-btn" id="td-next">${win ? `▶ 下一关（第 ${d.level} 关）` : "🔄 再来一次"}</button>
-      <button class="btn btn-ghost full" id="td-map">🗺️ 地图</button>`
+      <button class="big-btn" id="td-next">${!win ? "🔄 再来一次" : rule ? (nextRule ? `▶ 下一关：${esc(nextRule.title)}` : "🎉 全部通关！") : `▶ 下一关（第 ${d.level} 关）`}</button>
+      <button class="btn btn-ghost full" id="td-map">🗺️ ${rule ? "规则关列表" : "地图"}</button>`
     $("#overlay").classList.add("open")
     const close = () => $("#overlay").classList.remove("open")
-    $("#td-next").onclick = () => { close(); TD = null; win ? tdStart(d.level) : tdStart(lv) }
-    $("#td-map").onclick = () => { close(); TD = null; tdMap() }
-    const fx = $("#td-fix"); if (fx) fx.onclick = () => { close(); TD = null; fixWords(wrong, tdMap) }
+    const back = rule ? ruleMap : tdMap
+    $("#td-next").onclick = () => {
+      close(); TD = null
+      if (rule) return !win ? tdStartRule(rule.id) : nextRule ? tdStartRule(nextRule.id) : ruleMap()
+      win ? tdStart(d.level) : tdStart(lv)
+    }
+    $("#td-map").onclick = () => { close(); TD = null; back() }
+    const fx = $("#td-fix"); if (fx) fx.onclick = () => { close(); TD = null; fixWords(wrong, back) }
   }, 1200)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 魔法规则关（数据在 rules.js）
+// ═══════════════════════════════════════════════════════════════════════
+function tdRuleWaves(L) {
+  const all = RULE_ITEMS[L.id]
+  const special = shuffle(all.filter((o) => o.special))
+  // 普通题按规则轮流挑，保证每条规则都练到；最多 14 题
+  const byTag = {}
+  all.filter((o) => !o.special).forEach((o) => { (byTag[o.tag || "_"] = byTag[o.tag || "_"] || []).push(o) })
+  Object.values(byTag).forEach((a) => a.splice(0, a.length, ...shuffle(a)))
+  const regular = []
+  const tags = Object.keys(byTag).sort()
+  while (regular.length < 14 && tags.some((t) => byTag[t].length)) tags.forEach((t) => { if (byTag[t].length && regular.length < 14) regular.push(byTag[t].shift()) })
+  const sp = special.slice(0, 4)
+  const W = [[], [], []]
+  const third = Math.ceil(regular.length / 3)
+  W[0] = regular.slice(0, third)
+  W[1] = regular.slice(third, third * 2)
+  W[2] = regular.slice(third * 2)
+  // 特殊字：第 2 波 1 个，其余压轴（最后一个当 Boss）
+  if (sp.length) W[1].push(sp[0])
+  W[2].push(...sp.slice(1))
+  return W.filter((w) => w.length).map((w) => w.map((o) => ({ o, ghost: false })))
+}
+
+function tdStartRule(id) {
+  const L = RULE_LEVELS.find((x) => x.id === id)
+  if (!L) return ruleMap()
+  const items = RULE_ITEMS[id]
+  const el = subFrame(`${L.icon} ${esc(L.title)}`)
+  $("#back").onclick = ruleMap
+  const ex = (tag) => items.filter((o) => o.tag === tag && !o.special).slice(0, 3)
+  const nSpecial = items.filter((o) => o.special).length
+  el.innerHTML = `<div class="panel">
+    <h2>📜 魔法规则卡</h2>
+    <div class="sub">先读懂规则，开战时用规则把词拼出来。拼错了会告诉你是哪条规则。</div>
+    <div class="td-intel">${Object.entries(L.rules).map(([tag, text]) => `<div class="card" style="text-align:left">
+      <div style="font-weight:900;color:#6b3eb0;font-size:15px">${esc(text)}</div>
+      ${L.group === "root" ? "" : `<div style="margin-top:6px;font-size:15px">${ex(tag).map((o) => `${esc(o.parts.join(" + "))} → <b>${esc(o.w)}</b>`).join("<br>")}</div>`}
+    </div>`).join("")}
+    ${L.group === "root" ? `<div class="card" style="text-align:left;font-size:15px">${items.filter((o) => !o.special).slice(0, 4).map((o) => `${esc(o.parts.join(" + "))} → <b>${esc(o.w)}</b> <span style="color:#8d6b4c">${esc(o.why)}</span>`).join("<br>")}</div>` : ""}
+    </div>
+    ${nSpecial ? `<div class="sub" style="margin-top:10px">👑 小心！这一关有 ${nSpecial} 个「特殊字」不按规则走，会变成精英怪出现。</div>` : ""}
+    <button class="big-btn" id="rule-go">⚔️ 读懂了，开战！</button>
+  </div>`
+  const go = () => tdBattle(2 + Math.floor(RULE_LEVELS.indexOf(L) / 8), { fresh: [], hidden: [] }, L)
+  $("#rule-go").onclick = go
+  keyHandler = { enter: go }
+}
+
+function ruleMap() {
+  const el = subFrame("🧪 魔法规则关")
+  updateHeader()
+  S.rules = S.rules || {}
+  const done = RULE_LEVELS.filter((L) => S.rules[L.id]).length
+  el.innerHTML = `<div class="panel">
+    <div class="sub">英语拼写大多有规则：学会一条规则，就能拼对一大片单词。<br>每关先看规则卡，再用规则打怪。👑 特殊字是规则的例外。已通关 <b>${done}</b> / ${RULE_LEVELS.length}</div>
+    ${RULE_GROUPS.map((g) => `<h3>${g.icon} ${g.name}</h3><div class="sub" style="margin:-4px 0 8px">${g.desc}</div>
+      <div class="opt-list" style="margin-top:0">${RULE_LEVELS.filter((L) => L.group === g.key).map((L) => {
+        const st = S.rules[L.id] || 0
+        return `<button class="opt-btn" data-rule="${L.id}"><span class="oi">${L.icon}</span><span style="flex:1"><div class="ot">${esc(L.title)}</div>
+          <div class="od">${RULE_ITEMS[L.id].length} 个词${RULE_ITEMS[L.id].some((o) => o.special) ? " · 含特殊字" : ""}</div></span>
+          <span style="white-space:nowrap">${st ? "⭐".repeat(st) : "▶"}</span></button>`
+      }).join("")}</div>`).join("")}
+  </div>`
+  el.querySelectorAll("[data-rule]").forEach((b) => { b.onclick = () => tdStartRule(b.dataset.rule) })
 }
