@@ -44,7 +44,7 @@ def load_words():
     rules = os.path.join(ROOT, "rules.js")
     if os.path.exists(rules):
         with open(rules, encoding="utf-8") as f:
-            words += re.findall(r"^!?[a-z+]+=([a-z]+)", f.read(), re.M)
+            words += re.findall(r"(?:^|`)!?[a-z+]+=([a-z]+)", f.read(), re.M)
     return list(dict.fromkeys(words))
 
 
