@@ -459,8 +459,9 @@
 <div class="overlay" id="overlay"><div class="panel" id="overlay-card"></div></div>
 <div class="modal-backdrop" id="modal"><div class="modal" id="modal-card"></div></div>
 
-<script src="words.js?v=9"></script>
+<script src="words.js?v=10"></script>
 <script src="audio/manifest.js?v=9"></script>
+<script src="td.js?v=10"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // 设计思路（参考 Spelling Shed / Duolingo / Blooket 等孩子爱用的产品）：
@@ -1324,6 +1325,7 @@ function quitQuest() {
 function stageFrame() {
   gen++
   keyHandler = null
+  app.classList.remove("td-mode")
   stopSpeech()
   app.innerHTML = `<div class="stage-top">
       <button class="quit" id="quit">✕</button>
@@ -1566,44 +1568,51 @@ function home() {
   gen++
   keyHandler = null
   Q = null
+  TD = null
+  app.classList.remove("td-mode")
+  $("#overlay").classList.remove("open")
   stopSpeech()
   updateHeader()
-  const plan = planQuest()
-  const boss = nextBoss()
+  const td = tdData()
+  const lv = td.level
+  const ch = tdChapter(lv)
   const caught = MONSTERS.filter((m) => S.collection[m.id]).length
   const today = doneToday()
-  const known = !!S.collection[boss.id]
+  const due = allWords().filter((o) => isDue(o)).length
   app.innerHTML = `
     <div class="hero">
-      <div class="hero-boss ${known ? "" : "unknown"}">${boss.emoji}</div>
-      <div class="hero-kicker">${known ? `再战 ${esc(boss.name)}，抓闪光版 ✨` : "今天的 Boss：？？？"}</div>
-      <div class="hero-title">冒险 #${S.questNo + 1}</div>
-      <div class="hero-sub">${plan.fresh.length ? `🆕 ${plan.fresh.length} 个新词` : "🎉 新词都学完啦"} · 🔁 ${plan.words.length - plan.fresh.length} 个复习${plan.dueTotal > 6 ? `（还有 ${plan.dueTotal - 6} 个排队）` : ""}</div>
-      <div class="path-preview"><span>📖 学</span><span>🎮 玩</span><span>✍️ 默写</span><span>🎮 玩</span><span>👾 Boss</span></div>
-      <button class="big-btn" id="start">▶ ${today ? "再来一轮" : "开始今天的冒险"}</button>
-      <div class="hero-note">约 8 分钟 · 打败 Boss 就能收进图鉴</div>
+      <div class="hero-boss">${tdIsSiege(lv) ? "🏯" : "🏰"}</div>
+      <div class="hero-kicker">单词塔防 · 第 ${Math.floor((lv - 1) / 6) + 1} 章 ${ch.name}</div>
+      <div class="hero-title">${tdIsSiege(lv) ? "🏯 攻城战！" : `第 ${lv} 关`}</div>
+      <div class="hero-sub">单词怪只怕拼写！打对字母 = 射魔法弹 ⚡${due ? `<br>🔁 ${due} 个单词等着复习` : ""}</div>
+      <button class="big-btn" id="start">⚔️ 开战！</button>
+      <button class="btn btn-ghost full" id="td-mapbtn">🗺️ 关卡地图 · 🛠️ 军械库</button>
     </div>
     <div class="daily-row">
       <span style="font-size:24px">${today ? "✅" : "📅"}</span>
-      <span>${today ? `今天已完成 <b>${today}</b> 轮冒险` : "今天还没冒险哦"} · 连续打卡 <b>${streakNow()}</b> 天</span>
+      <span>${today ? `今天已经赢了 <b>${today}</b> 次` : "今天还没打哦"} · 连续打卡 <b>${streakNow()}</b> 天</span>
     </div>
     <div class="tiles">
+      <button class="tile" id="t-quest"><span class="tile-icon">📖</span><span class="tile-name">学习冒险</span><span class="tile-desc">学新词 + 小游戏 + 默写</span></button>
       <button class="tile" id="t-arcade"><span class="tile-icon">🎮</span><span class="tile-name">游戏厅</span><span class="tile-desc">5 个小游戏随便玩</span></button>
       <button class="tile" id="t-test"><span class="tile-icon">📝</span><span class="tile-name">默写测验</span><span class="tile-desc">像学校周五小测一样</span></button>
       <button class="tile" id="t-book"><span class="tile-icon">📚</span><span class="tile-name">单词本</span><span class="tile-desc">错词 · 复习 · 已掌握</span></button>
-      <button class="tile" id="t-coll"><span class="tile-icon">🏆</span><span class="tile-name">图鉴</span><span class="tile-desc">怪物 ${caught}/${MONSTERS.length} · 🎁 宝箱</span></button>
+      <button class="tile" id="t-coll" style="grid-column: span 2"><span class="tile-icon">🏆</span><span class="tile-name">图鉴</span><span class="tile-desc">怪物 ${caught}/${MONSTERS.length} · 🎁 宝箱抽宠物</span></button>
     </div>`
-  $("#start").onclick = startQuest
+  $("#start").onclick = () => tdStart(lv)
+  $("#td-mapbtn").onclick = tdMap
+  $("#t-quest").onclick = startQuest
   $("#t-arcade").onclick = arcade
   $("#t-test").onclick = testMenu
   $("#t-book").onclick = () => wordbook()
   $("#t-coll").onclick = collection
-  keyHandler = { enter: startQuest }
+  keyHandler = { enter: () => tdStart(lv) }
 }
 
 function subFrame(title) {
   gen++
   keyHandler = null
+  app.classList.remove("td-mode")
   stopSpeech()
   app.innerHTML = `<div class="stage-top"><button class="quit" id="back">←</button><div style="flex:1;font-weight:900;color:#f0d060;font-size:17px">${title}</div></div><div id="sub"></div>`
   $("#back").onclick = home
@@ -1727,10 +1736,10 @@ function testSheet(res, name) {
   $("#done").onclick = home
 }
 // 订正：写错的词逐个再写（带对比 + 照抄），不再记分
-function fixWords(words) {
+function fixWords(words, after = home) {
   let i = 0
   const next = () => {
-    if (i >= words.length) { toast("✅ 订正完成！"); return home() }
+    if (i >= words.length) { toast("✅ 订正完成！"); return after() }
     const el = subFrame("✍️ 订正")
     dictation(el, words[i], { mode: "check", label: `✍️ 订正 ${i + 1} / ${words.length}`, onDone: () => { i++; next() } })
   }
@@ -1824,6 +1833,7 @@ function openChest() {
 // 家长设置
 // ═══════════════════════════════════════════════════════════════════════
 function parentPanel() {
+  if (TD && TD.phase === "wave" && !TD.paused) tdPauseMenu()
   const packs = [["auto", "🌈 自动（推荐）"], ["lv1", "⭐ 1 级"], ["lv2", "⭐⭐ 2 级"], ["lv3", "⭐⭐⭐ 3 级"], ["lv4", "⭐⭐⭐⭐ 4 级"], ["mine", "🏫 只学学校词表"]]
   const card = $("#modal-card")
   card.innerHTML = `<h2>⚙ 家长设置</h2>
@@ -1854,18 +1864,18 @@ function parentPanel() {
     S.settings = pending
     if (S.settings.pack === "mine" && !S.custom.length) S.settings.pack = "auto"
     save(); closeModal(); toast("已保存 ✓")
-    if (!Q) home()
+    if (!Q && !TD) home()
   }
   $("#p-reset").onclick = () => {
     if (!confirm("清空所有单词的学习进度？（金币、图鉴、宠物会保留）")) return
-    S.prog = {}; S.history = []; save(); closeModal(); if (!Q) home()
+    S.prog = {}; S.history = []; save(); closeModal(); if (!Q && !TD) home()
   }
   $("#modal").classList.add("open")
 }
 function closeModal() { $("#modal").classList.remove("open") }
 $("#parent-btn").onclick = parentPanel
 $("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal() }
-$("#brand").onclick = () => { if (!Q || quitQuest()) home() }
+$("#brand").onclick = () => { if (TD && TD.phase !== "over" && !confirm("退出这一关？")) return; if (!Q || quitQuest()) home() }
 
 // ═══════════════════════════════════════════════════════════════════════
 // INIT
