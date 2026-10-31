@@ -459,9 +459,9 @@
 <div class="overlay" id="overlay"><div class="panel" id="overlay-card"></div></div>
 <div class="modal-backdrop" id="modal"><div class="modal" id="modal-card"></div></div>
 
-<script src="words.js?v=10"></script>
+<script src="words.js?v=11"></script>
 <script src="audio/manifest.js?v=9"></script>
-<script src="td.js?v=10"></script>
+<script src="td.js?v=11"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // 设计思路（参考 Spelling Shed / Duolingo / Blooket 等孩子爱用的产品）：
@@ -895,11 +895,12 @@ function trickySpots(o) {
 // 例句里把单词挖空，给孩子上下文但不泄露拼写
 function blankSentence(o) {
   if (!o.e) return ""
-  const w = norm(o.w)
+  // 多词名称（New York、Salt Lake City）按整个短语匹配
+  const w = o.w.toLowerCase().replace(/[^a-z ]/g, "").trim()
   const stems = [w]
-  if (w.length > 4) stems.push(w.replace(/(e|y)$/, ""))
+  if (w.length > 4 && !w.includes(" ")) stems.push(w.replace(/(e|y)$/, ""))
   for (const st of stems) {
-    const re = new RegExp(`\\b${st}[a-z]*`, "i")
+    const re = new RegExp(`\\b${st.replace(/ +/g, "\\s+")}[a-z]*`, "i")
     if (re.test(o.e)) return esc(o.e).replace(re, '<span class="blank">______</span>')
   }
   return ""
@@ -923,14 +924,15 @@ function lcsMarks(a, b) {
   }
   return [ka, kb]
 }
-function displayWord(o) { return norm(o.w).length === o.w.length ? o.w : norm(o.w) }
+// 显示用：保留大写和空格（New York）；含奇怪字符的自定义词才退回纯字母
+function displayWord(o) { return /^[A-Za-z][A-Za-z .'-]*$/.test(o.w) ? o.w : norm(o.w) }
 function diffHTML(typed, o) {
   const a = norm(typed), b = norm(o.w), [ka, kb] = lcsMarks(a, b.toLowerCase())
   const shown = displayWord(o)
   return `<div class="diff-card">
     <div class="diff-title" data-dt>❌ 差一点！对比一下：</div>
     <div class="diff-row"><span class="diff-lab">你写的</span><span class="diff-word">${[...a].map((c, i) => ka[i] ? esc(c) : `<span class="diff-bad">${esc(c)}</span>`).join("")}</span></div>
-    <div class="diff-row"><span class="diff-lab">正确</span><span class="diff-word ok">${[...shown].map((c, i) => kb[i] ? esc(c) : `<span class="diff-miss">${esc(c)}</span>`).join("")}</span></div>
+    <div class="diff-row"><span class="diff-lab">正确</span><span class="diff-word ok">${(() => { let bi = 0; return [...shown].map((c) => !/[a-z]/i.test(c) ? esc(c) : kb[bi++] ? esc(c) : `<span class="diff-miss">${esc(c)}</span>`).join("") })()}</span></div>
     <div class="diff-syl">${o.s.map(esc).join(" · ")}</div>
   </div>`
 }
@@ -1066,6 +1068,16 @@ function gBubble(el, o, answer) {
 
 // 🔍 火眼金睛：生成「看起来很像」的错误拼写
 function misspell(word, n) {
+  // 多词名称：只把其中一个词拼错，空格位置不变（Salt Lake City → Salt Lake Citty）
+  if (word.includes(" ")) {
+    const toks = word.split(" "), out = new Set()
+    const idx = toks.map((t, i) => i).filter((i) => toks[i].length >= 3)
+    for (let k = 0; k < 40 && out.size < n && idx.length; k++) {
+      const i = pick(idx), [bad] = misspell(toks[i], 1)
+      if (bad) out.add(toks.map((t, j) => (j === i ? bad : t)).join(" "))
+    }
+    return [...out]
+  }
   const w = word.toLowerCase(), V = "aeiou", out = new Set()
   const swapPairs = [["tion","sion"],["sion","tion"],["ence","ance"],["ance","ence"],["ent","ant"],["ant","ent"],["ible","able"],["able","ible"],
     ["ary","ery"],["ery","ary"],["ous","us"],["ture","cher"],["cial","tial"],["le","el"],["ful","full"],["ght","t"],["ough","uff"],
@@ -1093,10 +1105,14 @@ function misspell(word, n) {
   ]
   for (let k = 0; k < 120 && out.size < n; k++) {
     const r = pick(tries)()
-    if (r && r !== w && r.length > 1 && /^[a-z]+$/.test(r)) out.add(r)
+    if (r && r !== w && r.length > 1 && /^[a-z]+( [a-z]+)*$/.test(r)) out.add(r)
   }
-  const cap = word[0] !== w[0]
-  return [...out].map((x) => cap ? x[0].toUpperCase() + x.slice(1) : x)
+  // 大小写跟原词一致（New York → New Yrok）
+  const toks = word.split(" ")
+  return [...out].map((x) => {
+    const xs = x.split(" ")
+    return xs.map((t, i) => { const o = toks[xs.length === toks.length ? i : 0] || ""; return o[0] && o[0] !== o[0].toLowerCase() && (xs.length === toks.length || i === 0) ? t[0].toUpperCase() + t.slice(1) : t }).join(" ")
+  })
 }
 function gWhich(el, o, answer) {
   const right = displayWord(o)
@@ -1754,7 +1770,7 @@ function wordbook(tab = "trouble") {
   const all = allWords(), now = Date.now()
   const by = { trouble: [], due: [], learning: [], mastered: [], new: [] }
   all.forEach((o) => { const s = status(o); by[s].push(o); if (isDue(o, now)) by.due.push(o) })
-  const lvNames = { 1: "⭐ 1 级 · 基础必会 (英国 Y3-4)", 2: "⭐⭐ 2 级 · 高年级必会 (英国 Y5-6)", 3: "⭐⭐⭐ 3 级 · 学科词汇", 4: "⭐⭐⭐⭐ 4 级 · 挑战词" }
+  const lvNames = { 1: "⭐ 1 级 · 基础必会 (英国 Y3-4)", 2: "⭐⭐ 2 级 · 高年级必会 (英国 Y5-6)", 3: "⭐⭐⭐ 3 级 · 学科词汇", 4: "⭐⭐⭐⭐ 4 级 · 挑战词", 5: "🇺🇸 美国 50 州 + 首府" }
   const lvRow = (label, list) => {
     const m = list.filter((o) => status(o) === "mastered").length, l = list.filter((o) => status(o) !== "new").length
     return `<div class="lv-row"><div class="lv-top"><span>${label}</span><span>${m} 掌握 · ${l} 学过 / ${list.length}</span></div>
@@ -1770,7 +1786,7 @@ function wordbook(tab = "trouble") {
       <div class="sum-box"><div class="sum-num">${all.length}</div><div class="sum-lab">总词数</div></div>
     </div>
     <h3>词包进度</h3>
-    ${[1, 2, 3, 4].map((l) => lvRow(lvNames[l], BANK.filter((o) => o.lv === l))).join("")}
+    ${[1, 2, 3, 4, 5].map((l) => lvRow(lvNames[l], BANK.filter((o) => o.lv === l))).join("")}
     ${myWords().length ? lvRow("🏫 学校词表", myWords()) : ""}
     <div class="tabs">${tabs.map(([k, t]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${t} ${by[k].length}</button>`).join("")}</div>
     <div class="chips">${list.length ? list.slice(0, 300).map((o) => {
@@ -1834,7 +1850,7 @@ function openChest() {
 // ═══════════════════════════════════════════════════════════════════════
 function parentPanel() {
   if (TD && TD.phase === "wave" && !TD.paused) tdPauseMenu()
-  const packs = [["auto", "🌈 自动（推荐）"], ["lv1", "⭐ 1 级"], ["lv2", "⭐⭐ 2 级"], ["lv3", "⭐⭐⭐ 3 级"], ["lv4", "⭐⭐⭐⭐ 4 级"], ["mine", "🏫 只学学校词表"]]
+  const packs = [["auto", "🌈 自动（推荐）"], ["lv1", "⭐ 1 级"], ["lv2", "⭐⭐ 2 级"], ["lv3", "⭐⭐⭐ 3 级"], ["lv4", "⭐⭐⭐⭐ 4 级"], ["lv5", "🇺🇸 美国州名+首府"], ["mine", "🏫 只学学校词表"]]
   const card = $("#modal-card")
   card.innerHTML = `<h2>⚙ 家长设置</h2>
     <p>每轮冒险：学几个新词 → 小游戏 → 默写小关 → 小游戏 → 默写 Boss。新词用英国小学的「Look · Say · Cover · Write · Check」来学；只有默写能让单词升级，隔 1、3、7 天还能写对才算掌握。</p>

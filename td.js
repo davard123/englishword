@@ -93,6 +93,7 @@ function tdSfx(kind) {
   .td-meaning { font-size: 12px; color: #7a6a5c; margin-top: 1px; }
   .td-slots { display: flex; justify-content: center; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
   .td-slot { width: 21px; height: 29px; border-bottom: 3px solid #c9b8a0; font-size: 22px; font-weight: 900; text-align: center; line-height: 27px; color: #c9b8a0; }
+  .td-gap { width: 12px; }
   .td-slot.ok { color: #2d8a4a; border-color: #2d8a4a; }
   .td-slot.cur { border-color: #6b3eb0; }
   .td-slot.ghost { color: #cdbfae; }
@@ -468,12 +469,18 @@ function tdPanel() {
     <div class="td-mid">
       <div class="td-clue">${clue}</div>
       ${m.o.m && (m.ghost || blankSentence(m.o)) ? `<div class="td-meaning">${esc(m.o.m)}</div>` : ""}
-      <div class="td-slots">${[...w].map((c, i) => {
-        if (i < m.typed.length) return `<span class="td-slot ok">${c}</span>`
-        if (m.ghost) return `<span class="td-slot ghost ${i === m.typed.length ? "cur" : ""}">${c}</span>`
-        if (i === m.typed.length) return `<span class="td-slot cur ${m.hint ? "hint" : ""}">${m.hint ? c : ""}</span>`
-        return `<span class="td-slot"></span>`
-      }).join("")}</div>
+      <div class="td-slots">${(() => {
+        // 按显示形式画格子：保留大写，空格画成间隔（New York 不用打空格）
+        let i = 0
+        return [...displayWord(m.o)].map((ch) => {
+          if (!/[a-z]/i.test(ch)) return `<span class="td-gap"></span>`
+          const c = esc(ch), k = i++
+          if (k < m.typed.length) return `<span class="td-slot ok">${c}</span>`
+          if (m.ghost) return `<span class="td-slot ghost ${k === m.typed.length ? "cur" : ""}">${c}</span>`
+          if (k === m.typed.length) return `<span class="td-slot cur ${m.hint ? "hint" : ""}">${m.hint ? c : ""}</span>`
+          return `<span class="td-slot"></span>`
+        }).join("")
+      })()}</div>
     </div>
     <button class="td-slow" id="td-slow" title="慢速">🐢</button>`
   $("#td-say").onclick = () => speakWord(m.o.w)
