@@ -39,7 +39,13 @@ FORCE = "--force" in sys.argv
 
 def load_words():
     with open(os.path.join(ROOT, "words.js"), encoding="utf-8") as f:
-        return re.findall(r'"w":"([^"]+)"', f.read())
+        words = re.findall(r'"w":"([^"]+)"', f.read())
+    # 魔法规则关（rules.js）里的答案，例如 stop+ed=stopped
+    rules = os.path.join(ROOT, "rules.js")
+    if os.path.exists(rules):
+        with open(rules, encoding="utf-8") as f:
+            words += re.findall(r"^!?[a-z+]+=([a-z]+)", f.read(), re.M)
+    return list(dict.fromkeys(words))
 
 
 def audio_path(word):
