@@ -59,6 +59,34 @@ function tdSfx(kind) {
   else if (kind === "zap") tone(1800, 0.15, "sawtooth", 0.05)
   else if (kind === "wave") [392, 523, 659, 784].forEach((f, i) => tone(f, 0.14, "triangle", 0.1, i * 0.1))
   else if (kind === "coin") tone(1500, 0.05, "square", 0.03)
+  else if (kind === "dud") { tdSweep(220, 90, 0.35, "sawtooth", 0.08); tone(70, 0.3, "square", 0.05, 0.05) }
+  else if (kind === "charge") tdSweep(300, 1400, 0.35, "triangle", 0.06)
+  else if (kind === "freeze") [1568, 2093, 2637].forEach((f, i) => tone(f, 0.18, "sine", 0.05, i * 0.05))
+  else if (kind === "death") {
+    // 爆炸 + 惨叫 + 胜利小号
+    tone(80, 0.45, "sawtooth", 0.16); tone(55, 0.5, "square", 0.08, 0.04)
+    tdSweep(900, 120, 0.6, "sawtooth", 0.07, 0.05)
+    ;[523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, "triangle", 0.1, 0.35 + i * 0.09))
+  }
+}
+// 频率滑动（怪物惨叫、充能）
+function tdSweep(f1, f2, dur, type = "square", gain = 0.08, delay = 0) {
+  if (S.muted) return
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)()
+    const t = audioCtx.currentTime + delay, o = audioCtx.createOscillator(), g = audioCtx.createGain()
+    o.type = type
+    o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur)
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + dur)
+  } catch {}
+}
+// 被打掉一格血时的叫声：小怪尖叫，大怪低吼
+function tdYelp(m) {
+  if (m.big) { tdSweep(320, 90, 0.45, "sawtooth", 0.1); tdSweep(160, 60, 0.5, "square", 0.05, 0.05) }
+  else if (m.ghost) tdSweep(1200, 300, 0.5, "sine", 0.09)
+  else if (m.bars + 1 <= 1 || m.size < 1) { tdSweep(1300, 600, 0.12, "square", 0.07); tdSweep(1100, 450, 0.18, "square", 0.06, 0.12) }
+  else tdSweep(800, 260, 0.35, "sawtooth", 0.09)
 }
 
 ;(function tdCss() {
@@ -100,6 +128,9 @@ function tdSfx(kind) {
   .td-slot.cur { border-color: #6b3eb0; }
   .td-slot.ghost { color: #cdbfae; }
   .td-slot.hint { color: #ff8a00; }
+  .td-energy { position: relative; height: 14px; margin: 5px auto 0; max-width: 260px; background: #eee3d3; border-radius: 7px; overflow: hidden; }
+  .td-energy div { height: 100%; background: linear-gradient(90deg, #ffe066, #ff9a3c); transition: width .15s; }
+  .td-energy span { position: absolute; inset: 0; font-size: 10px; font-weight: 900; color: #6b3eb0; line-height: 14px; }
   .td-idle { flex: 1; text-align: center; font-size: 14px; font-weight: 800; color: #6b3eb0; }
   #td-kb .keyboard { margin-top: 0; }
   .td-map-ch { margin-top: 14px; }
@@ -248,7 +279,7 @@ function tdBattle(lv, plan, rule = null) {
     phase: "build", waveNo: 0, waves: rule ? tdRuleWaves(rule) : siege ? [] : tdWaves(plan.fresh, plan.hidden),
     queue: [], retry: [], spawnT: 0, minions: 0, minionT: 0,
     mons: [], shots: [], parts: [], texts: [], towers: map.spots.map(() => null),
-    target: null, res: new Map(), paused: false, menu: -1, last: 0, t: 0, nextId: 1,
+    target: null, res: new Map(), combo: 0, paused: false, menu: -1, last: 0, t: 0, nextId: 1,
     speed: Math.min(0.75, 0.42 * (1 + 0.025 * (lv - 1))), gap: Math.max(7, 13 - 0.25 * lv),
     maxAlive: lv <= 3 ? 2 : lv <= 9 ? 3 : 4,
   }
@@ -325,7 +356,7 @@ function tdStartWave() {
   tdHideBanner(); tdCloseMenu()
   if (TD.siege) { TD.phase = "wave"; tdSiegeNext(); return }
   const items = TD.waves[TD.waveNo] || []
-  TD.queue = [...items, ...TD.retry.splice(0)]
+  TD.queue = tdPack([...items, ...TD.retry.splice(0)])
   TD.phase = "wave"
   TD.spawnT = 1.2
   TD.minions = Math.min(8, 2 + Math.floor(TD.lv / 2) + TD.waveNo)
@@ -335,26 +366,48 @@ function tdStartWave() {
   tdPanel()
 }
 
-function tdSpecies(o, ghost) {
-  const n = norm(o.w).length
-  if (o.special) return { e: pick(["🐲", "🧌", "🦖", "🐙"]), sp: 0.75, size: 1.35, big: true }
-  if (ghost) return { e: "👻", sp: 0.8, size: 1, big: false }
-  if (n <= 5) return { e: pick(["🐺", "🦊", "🐗"]), sp: 1.2, size: 0.95, big: false }
-  if (n <= 8) return { e: pick(["👹", "🧟", "🦂", "🐊", "👺"]), sp: 1, size: 1.05, big: false }
-  return { e: pick(["🦏", "🐲", "🦍", "🐘"]), sp: 0.8, size: 1.3, big: true }
+// 把一波的单词打包成怪物：一个单词 = 一格血。新词幽灵 1 格；普通怪 1~3 格；特殊字做成精英怪的最后一格
+function tdPack(items) {
+  const ghosts = items.filter((it) => it.ghost)
+  const specials = items.filter((it) => !it.ghost && it.o.special)
+  const normals = items.filter((it) => !it.ghost && !it.o.special)
+  const sizes = TD.lv <= 2 ? [1, 2, 2, 1, 2] : [2, 3, 2, 1, 3]
+  const elites = specials.map((sp) => ({ items: [...normals.splice(-Math.min(2, Math.max(0, normals.length - 1))), sp] }))
+  const chunks = []
+  let k = 0
+  while (normals.length) { chunks.push({ items: normals.splice(0, sizes[k++ % sizes.length]) }) }
+  const out = []
+  const gs = ghosts.map((g) => ({ items: [g] }))
+  while (gs.length || chunks.length) { if (gs.length) out.push(gs.shift()); if (chunks.length) out.push(chunks.shift()) }
+  return [...out, ...elites]
+}
+function tdSpecies(spec) {
+  const n = spec.items.length, it = spec.items[0]
+  if (spec.items.some((x) => x.o.special)) return { e: pick(["🐲", "🧌", "🦖", "🐙"]), sp: 0.7, size: 1.35, big: true }
+  if (it.ghost) return { e: "👻", sp: 0.8, size: 1, big: false }
+  if (n <= 1) return { e: pick(["🐺", "🦊", "🐗"]), sp: 1.15, size: 0.95, big: false }
+  if (n === 2) return { e: pick(["👹", "🧟", "🦂", "🐊", "👺"]), sp: 0.9, size: 1.05, big: false }
+  return { e: pick(["🦏", "🐲", "🦍", "🐘"]), sp: 0.72, size: 1.3, big: true }
+}
+// 换到怪物的下一个单词（下一格血）
+function tdLoadItem(m) {
+  const it = m.items[0]
+  m.o = it.o; m.ghost = !!it.ghost; m.retry = !!it.retry
+  m.typed = ""; m.attempts = 0; m.copy = false; m.wrongTyped = ""; m.firing = false
 }
 function tdNewWordMon(it) {
-  const n = norm(it.o.w).length
-  return { id: TD.nextId++, o: it.o, ghost: !!it.ghost, retry: !!it.retry, hp: n, hpMax: n,
-    typed: "", attempts: 0, copy: false, wrongTyped: "", firing: false, killAt: 0, dead: false }
+  const items = it.items || [it]
+  const m = { id: TD.nextId++, items: [...items], bars: items.length, barsMax: items.length, hitAt: 0, hurtT: 0, dead: false }
+  tdLoadItem(m)
+  return m
 }
-function tdSpawnWord(it) {
-  const sp = tdSpecies(it.o, it.ghost)
-  TD.mons.push(Object.assign(tdNewWordMon(it), { kind: "word", e: sp.e, size: sp.size, big: sp.big, special: !!it.o.special,
-    sp: TD.speed * sp.sp, d: 0, slowT: 0, stunT: 0, rageT: 0, kbT: 0, bob: Math.random() * 6 }))
+function tdSpawnWord(spec) {
+  const sp = tdSpecies(spec)
+  TD.mons.push(Object.assign(tdNewWordMon(spec), { kind: "word", e: sp.e, size: sp.size, big: sp.big, special: spec.items.some((x) => x.o.special),
+    sp: TD.speed * sp.sp, d: 1, slowT: 0, stunT: 0, rageT: 0, kbT: 0, bob: Math.random() * 6 }))
 }
 function tdSpawnMinion() {
-  TD.mons.push({ id: TD.nextId++, kind: "minion", e: "🦇", size: 0.7, sp: TD.speed * 1.9, d: 0, hp: 2, hpMax: 2,
+  TD.mons.push({ id: TD.nextId++, kind: "minion", e: "🦇", size: 0.7, sp: TD.speed * 1.9, d: 1, hp: 2, hpMax: 2,
     slowT: 0, stunT: 0, rageT: 0, kbT: 0, dead: false, bob: Math.random() * 6 })
 }
 function tdPos(d) {
@@ -399,10 +452,13 @@ function tdSubmit() {
   const w = norm(m.o.w)
   if (m.typed === w) return tdFire(m)
   const pn = $("#td-panel"); pn.classList.remove("shake"); void pn.offsetWidth; pn.classList.add("shake")
-  tdSfx("miss")
-  const from = TD.siege ? { x: 1.6, y: TD_ROWS - 2.4 } : { x: TD.castle[0], y: TD.castle[1] - 0.4 }
-  const p = TD.siege ? { x: TD_COLS - 2.5, y: 3 } : tdPos(m.d)
-  for (let k = 0; k < 3; k++) TD.shots.push({ x: from.x, y: from.y, m: null, tx: p.x + (Math.random() - 0.5) * 2.5, ty: p.y - 1 - Math.random(), v: 11, kind: "miss", c: "#bbb", wait: k * 0.08 })
+  // 拼错：哑火，充的电散掉，连击清零
+  tdSfx("dud")
+  const from = TD.siege ? { x: 2.6, y: TD_ROWS - 2.6 } : { x: TD.castle[0], y: TD.castle[1] - 0.9 }
+  tdFloat(from.x, from.y - 0.3, "❌ 哑火", "#ff6b6b", 1.2)
+  TD.parts.push(...tdSpark(from.x, from.y, 8, "#777"))
+  if (TD.combo >= 2) tdFloat(from.x, from.y - 0.9, "连击断了", "#ccc", 1)
+  TD.combo = 0
   if (m.copy) { m.typed = ""; tdPanel(); return }
   m.attempts++
   m.wrongTyped = m.typed
@@ -414,13 +470,12 @@ function tdSubmit() {
 }
 function tdFire(m) {
   m.firing = true
-  m.hp = 0
   const from = TD.siege ? { x: 1.6, y: TD_ROWS - 2.4 } : { x: TD.castle[0], y: TD.castle[1] - 0.4 }
   const n = Math.min(10, norm(m.o.w).length)
   for (let k = 0; k < n; k++) TD.shots.push({ x: from.x, y: from.y, m, v: 15, kind: "bolt", c: k % 2 ? "#ffe066" : "#9df", wait: k * 0.05 })
   tdSfx("shoot")
   if (m.kind === "word") m.stunT = Math.max(m.stunT, 1)
-  m.killAt = TD.t + 0.45 + n * 0.05
+  m.hitAt = TD.t + 0.45 + n * 0.05
   tdPanel()
 }
 
@@ -445,17 +500,55 @@ function tdScore(m) {
   save()
   return perfect
 }
-function tdKill(m) {
-  m.dead = true
+// 拼对一个词 = 打掉一格血；充能给所有塔
+function tdHit(m) {
   const perfect = tdScore(m)
+  const len = norm(m.o.w).length
   const p = tdPos(m.d)
-  const g = 8 + m.hpMax * 2 + (perfect ? 6 : 0) + (m.special ? 10 : 0)
+  m.items.shift(); m.bars--
+  const g = 6 + len * 2 + (perfect ? 6 : 0)
   TD.gold += g; TD.goldEarned += g
-  tdBoom(p.x, p.y, m.big ? 34 : 22, ["#ffd700", "#ff7a00", "#ff3d3d", "#fff"])
-  tdFloat(p.x, p.y - 0.6, `+${g}💰`, "#ffd700")
-  if (perfect) { tdFloat(p.x, p.y - 1.2, m.ghost ? "本来就会！" : m.special ? "特殊字！PERFECT!" : "PERFECT!", "#7CFC00", 1.3); tdSfx("perfect") }
-  else { tdSfx("boom"); tdFloat(p.x, p.y - 1.2, m.ghost ? "学会了！" : "订正完成", "#fff", 1.3) }
+  tdCharge(len, perfect)
+  if (m.bars <= 0) return tdKill(m, perfect, p)
+  // 还有血：惨叫、闪一下、往后退一点，换下一个单词
+  tdYelp(m)
+  m.hurtT = 0.45; m.kbT = 0.5; m.stunT = 0
+  tdBoom(p.x, p.y, 12, ["#ff3d3d", "#fff", "#ffd700"])
+  tdFloat(p.x, p.y - 0.6, `-1 💔  +${g}💰`, "#ffd700")
+  if (perfect) tdFloat(p.x, p.y - 1.15, m.special ? "PERFECT!" : "一次拼对！", "#7CFC00", 1.1)
+  tdLoadItem(m)
+  later(() => { if (TD && TD.target === m && !m.dead) speakWord(m.o.w) }, 450)
+  TD.panelKey = null; tdPanel()
+}
+function tdKill(m, perfect, p) {
+  m.dead = true
+  const bonus = 5 * m.barsMax + (m.special ? 10 : 0)
+  TD.gold += bonus; TD.goldEarned += bonus
+  tdBoom(p.x, p.y, m.big ? 44 : 30, ["#ffd700", "#ff7a00", "#ff3d3d", "#fff"])
+  tdFloat(p.x, p.y - 0.6, `击败！+${bonus}💰`, "#ffd700", 1.3)
+  if (perfect) tdFloat(p.x, p.y - 1.25, m.ghost ? "本来就会！" : m.special ? "特殊字！PERFECT!" : "PERFECT!", "#7CFC00", 1.3)
+  else tdFloat(p.x, p.y - 1.25, m.ghost ? "学会了！" : "订正完成", "#fff", 1.3)
+  tdSfx("death")
   if (TD.target === m) TD.target = null
+}
+// 能量：发射时打对的每个字母 = 1 格电，流进每座塔（弓箭塔除外，它自动打蝙蝠）
+//   一次拼对 ×1.5；连击 2 次 ×1.5，3 次以上 ×2
+function tdCost(t) { return { ice: [5, 4], cannon: [7, 6], tesla: [9, 8] }[t.k][t.lv - 1] }
+function tdCharge(letters, perfect) {
+  TD.combo = (TD.combo || 0) + 1
+  const mult = (1 + 0.5 * Math.min(TD.combo - 1, 2)) * (perfect ? 1.5 : 1)
+  const gain = Math.round(letters * mult)
+  const from = { x: TD.castle[0], y: TD.castle[1] - 0.6 }
+  let any = false
+  TD.towers.forEach((t, i) => {
+    if (!t || t.k === "archer") return
+    any = true
+    t.charge = Math.min(tdCost(t) * 2, (t.charge || 0) + gain)
+    const [sx, sy] = TD.map.spots[i]
+    TD.shots.push({ x: from.x, y: from.y, tx: sx + 0.5, ty: sy + 0.5, v: 9, kind: "energy", c: "#ffe066" })
+  })
+  if (any) { tdSfx("charge"); tdFloat(from.x - 0.8, from.y - 0.9, `⚡+${gain}`, "#ffe066", 1.1) }
+  if (TD.combo >= 2) tdFloat(from.x - 0.8, from.y - 1.5, `🔥 连击 ×${TD.combo}`, "#ff9a3c", 1.2)
 }
 function tdLeak(m) {
   m.dead = true
@@ -469,8 +562,12 @@ function tdLeak(m) {
   tdFloat(TD.castle[0] - 1, TD.castle[1] - 1.5, displayWord(m.o), "#fff", 2.2)
   tdBoom(TD.castle[0], TD.castle[1], 18, ["#ff3d3d", "#999"])
   tdSfx("leak")
-  if (m.ghost) { tdRecord(m.o, "learned", true); if (!TD.rule && status(m.o) === "new") setBox(m.o, 1) }
-  else if (!m.retry) { tdRecord(m.o, "first", false); if (!TD.rule) grade(m.o, false); TD.retry.push({ o: m.o, ghost: false, retry: true }) }
+  // 没打完的每个单词都算没拼对，下一波再来
+  m.items.forEach((it) => {
+    if (it.ghost) { tdRecord(it.o, "learned", true); if (!TD.rule && status(it.o) === "new") setBox(it.o, 1) }
+    else if (!it.retry) { tdRecord(it.o, "first", false); if (!TD.rule) grade(it.o, false); TD.retry.push({ o: it.o, ghost: false, retry: true }) }
+  })
+  TD.combo = 0
   save()
   if (TD.target === m) TD.target = null
   if (TD.hearts <= 0) tdEnd(false)
@@ -517,7 +614,7 @@ function tdPanel() {
     pn.innerHTML = `<div class="td-idle">${msg}</div>`
     return
   }
-  const key = `${m.id}|${m.typed}|${m.copy}`
+  const key = `${m.id}|${m.o.key}|${m.bars}|${m.typed}|${m.copy}`
   if (TD.panelKey === key) return
   TD.panelKey = key
   const o = m.o
@@ -556,6 +653,7 @@ function tdPanel() {
       <div class="td-clue">${clue}</div>
       ${sub ? `<div class="td-meaning">${sub}</div>` : ""}
       <div class="td-slots">${slots}</div>
+      <div class="td-energy"><div style="width:${Math.round(m.typed.length / norm(o.w).length * 100)}%"></div><span>⚡ ${m.typed.length}${m.barsMax > 1 ? ` · 🩸 还剩 ${m.bars} 格血` : ""}${TD.combo >= 2 ? ` · 🔥 连击 ×${TD.combo}` : ""}</span></div>
     </div>
     <button class="td-slow" id="td-slow" title="慢速">🐢</button>`
   $("#td-say").onclick = () => speakWord(o.w)
@@ -673,9 +771,10 @@ function tdUpdate(dt) {
   // 怪物移动
   for (const m of TD.mons) {
     if (m.dead) continue
-    if (m.firing) { if (TD.t >= m.killAt) tdKill(m); continue }
+    m.hurtT = Math.max(0, (m.hurtT || 0) - dt)
+    if (m.firing) { if (TD.t >= m.hitAt) tdHit(m); continue }
     m.slowT = Math.max(0, m.slowT - dt); m.stunT = Math.max(0, m.stunT - dt); m.rageT = Math.max(0, m.rageT - dt)
-    if (m.kbT > 0) { const k = Math.min(m.kbT, dt * 4); m.d = Math.max(0, m.d - k); m.kbT -= k; continue }
+    if (m.kbT > 0) { const k = Math.min(m.kbT, dt * 4); m.d = Math.max(1, m.d - k); m.kbT -= k; continue }
     if (m.stunT > 0) continue
     m.d += m.sp * (m.slowT > 0 ? 0.55 : 1) * (m.rageT > 0 ? 1.6 : 1) * dt
     if (m.d >= TD.len) tdLeak(m)
@@ -687,21 +786,32 @@ function tdUpdate(dt) {
     const T = TD_TOWERS[t.k], [sx, sy] = TD.map.spots[i], cx = sx + 0.5, cy = sy + 0.5, R = T.range[t.lv - 1]
     const inR = tdAlive().filter((m) => { const p = tdPos(m.d); return Math.hypot(p.x - cx, p.y - cy) <= R })
     t.cd -= dt
-    if (t.k === "ice") { inR.forEach((m) => { m.slowT = Math.max(m.slowT, t.lv === 2 ? 0.6 : 0.4) }); return }
     if (t.cd > 0) return
+    // 冰冻 / 大炮 / 闪电：有电才出手（电来自拼对的字母）
+    const ready = t.k !== "archer" && (t.charge || 0) >= tdCost(t)
+    if (t.k === "ice") {
+      if (ready && inR.some((m) => m.kind === "word")) {
+        inR.forEach((m) => { m.slowT = Math.max(m.slowT, t.lv === 2 ? 5 : 3.5) })
+        t.charge -= tdCost(t); t.cd = 0.8; tdSfx("freeze")
+        for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; TD.parts.push({ x: cx, y: cy, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, t: 0.6, c: "#bfe9ff", s: 0.09 }) }
+      }
+      return
+    }
     if (t.k === "archer") {
       const bats = inR.filter((m) => m.kind === "minion")
       if (bats.length) { const m = bats.reduce((a, b) => (b.d > a.d ? b : a)); TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv, c: "#8b5a2b" }); t.cd = t.lv === 2 ? 0.55 : 0.85 }
     } else if (t.k === "cannon") {
-      if (inR.length) {
+      if (ready && inR.length) {
+        t.charge -= tdCost(t)
         const m = inR.reduce((a, b) => (b.d > a.d ? b : a))
-        TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: "#333" }); t.cd = t.lv === 2 ? 3.2 : 4.5
+        TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: "#333" }); t.cd = 0.7
       }
     } else if (t.k === "tesla") {
       const ws = inR.filter((m) => m.kind === "word")
-      if (ws.length) {
-        ws.forEach((m) => { m.stunT = t.lv === 2 ? 2.4 : 1.6; const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
-        tdSfx("zap"); t.cd = t.lv === 2 ? 6 : 8
+      if (ready && ws.length) {
+        t.charge -= tdCost(t)
+        ws.forEach((m) => { m.stunT = t.lv === 2 ? 3 : 2; const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
+        tdSfx("zap"); t.cd = 0.8
       }
     }
   })
@@ -737,6 +847,7 @@ function tdFxUpdate(dt) {
     if (dist <= step || dist < 0.05) {
       s.done = true
       if (s.kind === "bolt") TD.parts.push(...tdSpark(tx, ty, 5, "#ffe066"))
+      else if (s.kind === "energy") TD.parts.push(...tdSpark(tx, ty, 6, "#ffe066"))
       else if (s.kind === "miss") TD.parts.push(...tdSpark(tx, ty, 4, "#aaa"))
       else if (s.kind === "arrow" && s.m && !s.m.dead) { s.m.hp -= s.dmg; if (s.m.hp <= 0) { s.m.dead = true; TD.gold += 3; TD.goldEarned += 3; tdFloat(tx, ty - 0.4, "+3💰", "#ffd700"); TD.parts.push(...tdSpark(tx, ty, 10, "#9d6bd1")) } }
       else if (s.kind === "ball") {
@@ -757,7 +868,11 @@ function tdFxUpdate(dt) {
 }
 function tdSpark(x, y, n, c) { return [...Array(n)].map(() => ({ x, y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.8) * 4, t: 0.4 + Math.random() * 0.3, c, s: 0.08 })) }
 function tdBoom(x, y, n, colors) { for (let i = 0; i < n; i++) TD.parts.push({ x, y, vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.7) * 7, t: 0.5 + Math.random() * 0.5, c: pick(colors), s: 0.07 + Math.random() * 0.08 }) }
-function tdFloat(x, y, text, c, t = 1) { TD.texts.push({ x, y, text, c, t, t0: t }) }
+function tdFloat(x, y, text, c, t = 1) {
+  // 文字别飘出地图边
+  x = Math.max(1.2, Math.min(TD_COLS - 1.2, x)); y = Math.max(0.9, Math.min(TD_ROWS - 0.4, y))
+  TD.texts.push({ x, y, text, c, t, t0: t })
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // 绘制（塔防）
@@ -803,6 +918,14 @@ function tdDraw() {
       tdText(ctx, "+", x, y, T * 0.5, "#fff", "rgba(0,0,0,0.4)")
     } else {
       ctx.fillStyle = "#6d5a48"; ctx.fill(); ctx.strokeStyle = t.lv === 2 ? "#ffd700" : "#3d2f22"; ctx.lineWidth = 3; ctx.stroke()
+      if (t.k !== "archer") {
+        // 能量环：充满就发光
+        const f = Math.min(1, (t.charge || 0) / tdCost(t))
+        ctx.beginPath(); ctx.arc(x, y, T * 0.5, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2)
+        ctx.strokeStyle = f >= 1 ? "#ffe066" : "rgba(255,230,100,0.75)"; ctx.lineWidth = f >= 1 ? 4 : 3
+        if (f >= 1) { ctx.shadowColor = "#ffe066"; ctx.shadowBlur = 10 }
+        ctx.stroke(); ctx.shadowBlur = 0
+      }
       tdEmo(ctx, TD_TOWERS[t.k].icon, x, y - T * 0.05, T * 0.62)
       if (t.lv === 2) tdEmo(ctx, "⭐", x + T * 0.32, y - T * 0.32, T * 0.3)
     }
@@ -810,25 +933,34 @@ function tdDraw() {
   // 怪物
   const ms = TD.mons.filter((m) => !m.dead).map((m) => ({ m, p: tdPos(m.d) })).sort((a, b) => a.p.y - b.p.y)
   for (const { m, p } of ms) {
-    const x = p.x * T, y = p.y * T + Math.sin(TD.t * 6 + m.bob) * T * 0.05 - T * 0.15
+    const shake = m.hurtT > 0 ? Math.sin(TD.t * 60) * T * 0.08 : 0
+    const x = p.x * T + shake, y = p.y * T + Math.sin(TD.t * 6 + m.bob) * T * 0.05 - T * 0.15
     const size = T * 0.75 * m.size
     if (m === TD.target) {
       const r = size * 0.62 + Math.sin(TD.t * 8) * 2
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.strokeStyle = "#ffd700"; ctx.lineWidth = 3; ctx.stroke()
-      tdEmo(ctx, "🎯", x, y - size * 0.95, T * 0.35)
+      tdEmo(ctx, "🎯", x - size * 0.75, y - size * 0.45, T * 0.3)
     }
     if (m.slowT > 0) { ctx.beginPath(); ctx.arc(x, y + size * 0.35, size * 0.45, 0, Math.PI * 2); ctx.fillStyle = "rgba(120,200,255,0.45)"; ctx.fill() }
     tdEmo(ctx, m.e, x, y, size, m.ghost ? 0.75 : 1)
+    if (m.hurtT > 0) tdEmo(ctx, "💥", x + size * 0.3, y - size * 0.1, T * 0.45, Math.min(1, m.hurtT * 3))
     if (m.rageT > 0) tdEmo(ctx, "💢", x + size * 0.45, y - size * 0.45, T * 0.3)
     if (m.stunT > 0) tdEmo(ctx, "💫", x, y - size * 0.6, T * 0.32)
-    // 血条（每个字母一格）
+    // 头顶血条：一个单词一格
     if (m.kind === "word") {
-      const bw = Math.min(T * 1.4, Math.max(T * 0.7, m.hpMax * T * 0.12)), bh = Math.max(4, T * 0.12), bx = x - bw / 2, by = y + size * 0.55
-      ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2)
-      ctx.fillStyle = m.ghost ? "#c9b8ff" : "#ff4d4d"; ctx.fillRect(bx, by, bw * (m.hp / m.hpMax), bh)
-      if (m.hpMax <= 14) { ctx.fillStyle = "rgba(0,0,0,0.5)"; for (let k = 1; k < m.hpMax; k++) ctx.fillRect(bx + bw * k / m.hpMax, by, 1, bh) }
-      if (m.ghost) tdText(ctx, "NEW", x, by + bh + T * 0.17, T * 0.24, "#fff", "#6b3eb0")
-      if (m.special) { tdEmo(ctx, "👑", x, y - size * 0.7, T * 0.42); tdText(ctx, "特殊字", x, by + bh + T * 0.17, T * 0.24, "#ffd700", "#7a3d00") }
+      const n = m.barsMax, seg = Math.max(T * 0.22, Math.min(T * 0.34, T * 1.2 / n)), gap = 2, bh = Math.max(5, T * 0.15)
+      const bw = n * seg + (n - 1) * gap, bx = Math.max(4, Math.min(TD_COLS * T - bw - T * 0.5, x - bw / 2))
+      let by = y - size * 0.62 - bh - (m.special ? T * 0.28 : 0)
+      if (by < 4) by = y + size * 0.55   // 贴着地图上边：血条画到脚下
+      ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4)
+      for (let k = 0; k < n; k++) {
+        const on = k < m.bars
+        ctx.fillStyle = on ? (m.ghost ? "#c9b8ff" : k === m.bars - 1 && m === TD.target ? "#ff7a59" : "#ff3b3b") : "rgba(255,255,255,0.15)"
+        ctx.fillRect(bx + k * (seg + gap), by, seg, bh)
+      }
+      if (n > 1) tdText(ctx, `×${m.bars}`, bx + bw + T * 0.22, by + bh / 2, T * 0.26, "#fff")
+      if (m.ghost) tdText(ctx, "NEW", x, y + size * 0.62, T * 0.24, "#fff", "#6b3eb0")
+      if (m.special) { tdEmo(ctx, "👑", x, y - size * 0.62 - T * 0.12, T * 0.36); tdText(ctx, "特殊字", x, y + size * 0.62, T * 0.24, "#ffd700", "#7a3d00") }
     }
   }
   tdDrawFx(ctx, T)
@@ -893,12 +1025,12 @@ function tdSiegeHit(m) {
   tdSfx("boom")
   if (perfect) { TD.shield = true; tdFloat(3, TD_ROWS - 3.5, "PERFECT! 🛡️", "#7CFC00", 1.4); tdSfx("perfect") }
   else tdFloat(TD_COLS / 2, 2.2, displayWord(m.o), "#fff", 2)
-  const g = 8 + m.hpMax * 2 + (perfect ? 6 : 0); TD.gold += g; TD.goldEarned += g
+  const g = 8 + norm(m.o.w).length * 2 + (perfect ? 6 : 0); TD.gold += g; TD.goldEarned += g
   later(() => { if (TD && TD.phase === "wave") tdSiegeNext() }, 1100)
 }
 function tdSiegeUpdate(dt) {
   if (TD.phase !== "wave") return
-  if (TD.sw && TD.sw.firing && !TD.sw.dead && TD.t >= TD.sw.killAt) tdSiegeHit(TD.sw)
+  if (TD.sw && TD.sw.firing && !TD.sw.dead && TD.t >= TD.sw.hitAt) tdSiegeHit(TD.sw)
   for (const r of TD.rocks) {
     r.t += dt
     if (r.t >= r.dur && !r.hit) {

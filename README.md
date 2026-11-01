@@ -10,8 +10,11 @@ A spelling game for 5th graders. Single static page, works offline, no accounts.
   type the whole word and press ⚔️; a correct answer fires a volley that destroys the monster.
   A wrong answer misfires, shows the correct spelling and why, and the kid re-types it to finish the monster.
 - 👻 Ghost monsters are this level's new words: the kid guesses first, then sees and copies the answer. They come back later in the level with the word hidden.
-- Towers can't kill word monsters; they buy time: 🏹 archer (shoots gold-stealing bats), ❄️ ice (slows),
-  💣 cannon (knocks monsters back), ⚡ tesla (stuns). Gold comes from kills and is spent on building and upgrading.
+- **One word = one health bar.** Monsters carry 1–3 words (bars shown above the head); each correct word knocks off a bar
+  with a yelp, and the last one triggers an explosion and a victory jingle. Exceptions (👑) are the last bar of an elite monster.
+- **Towers run on spelling energy.** Each letter typed charges the energy bar; on a correct Fire the energy flows into every tower
+  (×1.5 for a first-try answer, ×1.5–2 for combos). ❄️ ice (freeze pulse), 💣 cannon (knock back) and ⚡ tesla (stun) only act
+  when charged. A wrong answer is a dud: the energy fizzles and the combo resets. 🏹 archers still shoot gold-stealing bats on their own.
 - Every 6th level is a 🏯 **siege**: each spelled word knocks a brick off the enemy fortress, and the enemy cannon fires on a timer.
   A perfect word gives a 🛡️ shield. Knock down every brick to capture the boss for the collection.
 - A word counts as a correct dictation only when it's spelled with no wrong letters. Missed words return in the next wave.
