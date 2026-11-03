@@ -18,6 +18,9 @@ A spelling game for 5th graders. Single static page, works offline, no accounts.
   the energy fizzles and the combo resets.
 - Towers upgrade to **Lv.4**; Lv.3–4 add new moves (archers hit 2–3 bats per volley, ice freezes solid at Lv.4,
   Lv.4 cannon knocks back every word monster in range, tesla lightning chains at Lv.3–4).
+- 🔗 **Merge** two different towers for 150 gold into one of 6 hybrids: 💥 bomb (archer+cannon), 🧊 frost bow (archer+ice),
+  🌩️ storm bow (archer+tesla), ☃️ frost cannon (cannon+ice), 🌨️ blizzard (ice+tesla), 💫 thunder cannon (cannon+tesla).
+  Archer hybrids shoot bats for free; all hybrids still need spelling energy to act on word monsters.
 - Every 6th level is a 🏯 **siege**: each spelled word knocks a brick off the enemy fortress, and the enemy cannon fires on a timer.
   A perfect word gives a 🛡️ shield. Knock down every brick to capture the boss for the collection.
 - A word counts as a correct dictation only when it's spelled with no wrong letters. Missed words return in the next wave.
