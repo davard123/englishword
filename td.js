@@ -26,12 +26,18 @@ const TD_MAPS = [
   { path: [[-1, 2], [4, 2], [4, 6], [8, 6], [8, 2], [11, 2]], spots: [[2, 1], [2, 4], [6, 3], [6, 8], [10, 1], [10, 4]] },
   { path: [[-1, 7], [3, 7], [3, 1], [7, 1], [7, 5], [11, 5]], spots: [[1, 5], [5, 3], [5, 6], [9, 3], [9, 7], [5, 0]] },
 ]
+// 每座塔 4 级。cost[0] = 造价，cost[1..3] = 升到 2/3/4 级的价钱；up[n] = 升到 n+1 级后的效果说明
 const TD_TOWERS = {
-  archer: { icon: "🏹", name: "弓箭塔", cost: [50, 60], range: [2.6, 3.1], unlock: 1, desc: "射偷金币的蝙蝠 · 1 格电 1 轮箭" },
-  ice:    { icon: "❄️", name: "冰冻塔", cost: [60, 70], range: [2.3, 2.8], unlock: 1, desc: "冻慢范围内的怪 · 5 格电" },
-  cannon: { icon: "💣", name: "大炮塔", cost: [90, 90], range: [2.4, 2.9], unlock: 3, desc: "把单词怪轰回去、炸蝙蝠 · 7 格电" },
-  tesla:  { icon: "⚡", name: "闪电塔", cost: [120, 100], range: [2.6, 3.1], unlock: 7, desc: "电晕附近的单词怪 · 9 格电" },
+  archer: { icon: "🏹", name: "弓箭塔", cost: [50, 60, 120, 180], range: [2.6, 3.1, 3.3, 3.6], unlock: 1, desc: "射偷金币的蝙蝠 · 1 格电 1 轮箭",
+    up: ["", "箭伤害翻倍、射得更快", "一轮射 2 只蝙蝠", "一轮射 3 只蝙蝠，电池 24 格"] },
+  ice:    { icon: "❄️", name: "冰冻塔", cost: [60, 70, 120, 180], range: [2.3, 2.8, 3.2, 3.4], unlock: 1, desc: "冻慢范围内的怪 · 5 格电",
+    up: ["", "冻 5 秒，只要 4 格电", "范围更大，冻 6 秒", "大招：先完全冻住 2 秒，再冻慢"] },
+  cannon: { icon: "💣", name: "大炮塔", cost: [90, 90, 120, 180], range: [2.4, 2.9, 3.1, 3.3], unlock: 3, desc: "把单词怪轰回去、炸蝙蝠 · 7 格电",
+    up: ["", "只要 6 格电", "轰得更远，爆炸范围更大", "大招：一炮轰退范围内所有单词怪"] },
+  tesla:  { icon: "⚡", name: "闪电塔", cost: [120, 100, 120, 180], range: [2.6, 3.1, 3.3, 3.5], unlock: 7, desc: "电晕附近的单词怪 · 9 格电",
+    up: ["", "电晕 3 秒，只要 8 格电", "闪电连锁：范围外 2 只怪也被电到", "大招：电晕 4 秒，连锁 4 只"] },
 }
+const TD_MAX_LV = 4
 const TD_UPGRADES = {
   heart: { icon: "❤️", name: "城堡加固", desc: "每关多 1 颗心", cost: [80, 160, 240] },
   gold:  { icon: "💰", name: "战争金库", desc: "开局多 30 金币", cost: [60, 120, 180] },
@@ -280,8 +286,9 @@ function tdBattle(lv, plan, rule = null) {
     queue: [], retry: [], spawnT: 0, minions: 0, minionT: 0,
     mons: [], shots: [], parts: [], texts: [], towers: map.spots.map(() => null),
     target: null, res: new Map(), combo: 0, paused: false, menu: -1, last: 0, t: 0, nextId: 1,
-    speed: Math.min(0.75, 0.42 * (1 + 0.025 * (lv - 1))), gap: Math.max(7, 13 - 0.25 * lv),
-    maxAlive: lv <= 3 ? 2 : lv <= 9 ? 3 : 4,
+    // 难度：比原来快约 40%，刷怪更密，同时在场的怪更多
+    speed: Math.min(1.05, 0.6 * (1 + 0.04 * (lv - 1))), gap: Math.max(4.5, 10 - 0.3 * lv),
+    maxAlive: lv <= 2 ? 2 : lv <= 6 ? 3 : lv <= 14 ? 4 : 5,
   }
   // 路径
   const pts = map.path.map(([x, y]) => [x + 0.5, y + 0.5])
@@ -371,7 +378,7 @@ function tdPack(items) {
   const ghosts = items.filter((it) => it.ghost)
   const specials = items.filter((it) => !it.ghost && it.o.special)
   const normals = items.filter((it) => !it.ghost && !it.o.special)
-  const sizes = TD.lv <= 2 ? [1, 2, 2, 1, 2] : [2, 3, 2, 1, 3]
+  const sizes = TD.lv <= 2 ? [1, 2, 2, 1, 2] : TD.lv <= 7 ? [2, 3, 2, 1, 3] : [2, 3, 3, 2, 3]
   const elites = specials.map((sp) => ({ items: [...normals.splice(-Math.min(2, Math.max(0, normals.length - 1))), sp] }))
   const chunks = []
   let k = 0
@@ -533,9 +540,9 @@ function tdKill(m, perfect, p) {
 }
 // 能量：发射时打对的每个字母 = 1 格电，流进每座塔（所有塔都靠电出手）
 //   一次拼对 ×1.5；连击 2 次 ×1.5，3 次以上 ×2
-function tdCost(t) { return { archer: [1, 1], ice: [5, 4], cannon: [7, 6], tesla: [9, 8] }[t.k][t.lv - 1] }
+function tdCost(t) { return { archer: [1, 1, 1, 1], ice: [5, 4, 4, 4], cannon: [7, 6, 6, 6], tesla: [9, 8, 8, 8] }[t.k][t.lv - 1] }
 // 最多能存多少电：弓箭塔一格电射一轮，电池大一点（12 / 16 格）；其他塔存两次出手的电
-function tdCap(t) { return t.k === "archer" ? (t.lv === 2 ? 16 : 12) : tdCost(t) * 2 }
+function tdCap(t) { return t.k === "archer" ? [12, 16, 20, 24][t.lv - 1] : tdCost(t) * 2 }
 function tdCharge(letters, perfect) {
   TD.combo = (TD.combo || 0) + 1
   const mult = (1 + 0.5 * Math.min(TD.combo - 1, 2)) * (perfect ? 1.5 : 1)
@@ -704,7 +711,7 @@ function tdOpenMenu(si) {
   } else {
     const T = TD_TOWERS[t.k]
     html = `<div class="tp-title">${T.icon} ${T.name} Lv.${t.lv}</div>
-      ${t.lv < 2 ? `<button class="td-opt" data-up ${TD.gold < T.cost[1] ? "disabled" : ""}><span class="to-i">⬆️</span><span><div>升级</div><div class="to-d">范围更大、效果更强</div></span><span class="to-c">💰${T.cost[1]}</span></button>` : ""}
+      ${t.lv < TD_MAX_LV ? `<button class="td-opt" data-up ${TD.gold < T.cost[t.lv] ? "disabled" : ""}><span class="to-i">⬆️</span><span><div>升到 Lv.${t.lv + 1}</div><div class="to-d">${T.up[t.lv]}</div></span><span class="to-c">💰${T.cost[t.lv]}</span></button>` : `<div class="to-d" style="text-align:center;margin-top:6px">⭐ 已经满级</div>`}
       <button class="td-opt" data-sell><span class="to-i">💰</span><span><div>卖掉</div><div class="to-d">返还一半金币</div></span><span class="to-c">+${tdSellValue(t)}</span></button>`
   }
   html += `<button class="td-opt" data-close style="justify-content:center">✕ 关闭</button>`
@@ -722,7 +729,13 @@ function tdOpenMenu(si) {
     tdSfx("build"); tdBoom(sx + 0.5, sy + 0.5, 14, ["#fff", "#ffd700"]); tdCloseMenu()
   } })
   const up = pop.querySelector("[data-up]")
-  if (up) up.onclick = () => { const T = TD_TOWERS[t.k]; if (TD.gold < T.cost[1]) return; TD.gold -= T.cost[1]; t.lv = 2; t.spent += T.cost[1]; tdSfx("build"); tdCloseMenu() }
+  if (up) up.onclick = () => {
+    const T = TD_TOWERS[t.k], c = T.cost[t.lv]
+    if (t.lv >= TD_MAX_LV || TD.gold < c) return
+    TD.gold -= c; t.lv++; t.spent += c
+    tdSfx("build"); tdBoom(sx + 0.5, sy + 0.5, 18, ["#ffd700", "#fff"]); tdFloat(sx + 0.5, sy - 0.2, `Lv.${t.lv}!`, "#ffd700", 1.2)
+    tdCloseMenu()
+  }
   const sell = pop.querySelector("[data-sell]")
   if (sell) sell.onclick = () => { TD.gold += tdSellValue(t); TD.towers[si] = null; tdSfx("coin"); tdCloseMenu() }
   pop.querySelector("[data-close]").onclick = tdCloseMenu
@@ -793,7 +806,10 @@ function tdUpdate(dt) {
     const ready = (t.charge || 0) >= tdCost(t)
     if (t.k === "ice") {
       if (ready && inR.some((m) => m.kind === "word")) {
-        inR.forEach((m) => { m.slowT = Math.max(m.slowT, t.lv === 2 ? 5 : 3.5) })
+        inR.forEach((m) => {
+          m.slowT = Math.max(m.slowT, [3.5, 5, 6, 6][t.lv - 1])
+          if (t.lv === 4 && m.kind === "word") m.stunT = Math.max(m.stunT, 2)   // 4 级：完全冻住 2 秒
+        })
         t.charge -= tdCost(t); t.cd = 0.8; tdSfx("freeze")
         for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; TD.parts.push({ x: cx, y: cy, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, t: 0.6, c: "#bfe9ff", s: 0.09 }) }
       }
@@ -801,18 +817,43 @@ function tdUpdate(dt) {
     }
     if (t.k === "archer") {
       const bats = inR.filter((m) => m.kind === "minion")
-      if (ready && bats.length) { t.charge -= tdCost(t); const m = bats.reduce((a, b) => (b.d > a.d ? b : a)); TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv, c: "#8b5a2b" }); t.cd = t.lv === 2 ? 0.55 : 0.85 }
+      if (ready && bats.length) {
+        // 一轮箭：1/1/2/3 只蝙蝠，最靠近城堡的先射
+        t.charge -= tdCost(t)
+        bats.sort((a, b) => b.d - a.d).slice(0, [1, 1, 2, 3][t.lv - 1]).forEach((m) =>
+          TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv >= 2 ? 2 : 1, c: "#8b5a2b" }))
+        t.cd = [0.85, 0.55, 0.5, 0.45][t.lv - 1]
+      }
     } else if (t.k === "cannon") {
       if (ready && inR.length) {
         t.charge -= tdCost(t)
-        const m = inR.reduce((a, b) => (b.d > a.d ? b : a))
-        TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: "#333" }); t.cd = 0.7
+        // 4 级：每只单词怪都挨一炮；否则打最靠前的
+        const words = inR.filter((m) => m.kind === "word")
+        const targets = t.lv === 4 && words.length ? words : [inR.reduce((a, b) => (b.d > a.d ? b : a))]
+        targets.forEach((m) => TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: "#333", kb: t.lv >= 3 ? 2 : 1.2, r: t.lv >= 3 ? 1.8 : 1.3 }))
+        t.cd = 0.7
       }
     } else if (t.k === "tesla") {
       const ws = inR.filter((m) => m.kind === "word")
       if (ready && ws.length) {
         t.charge -= tdCost(t)
-        ws.forEach((m) => { m.stunT = t.lv === 2 ? 3 : 2; const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
+        const stun = [2, 3, 3, 4][t.lv - 1]
+        ws.forEach((m) => { m.stunT = Math.max(m.stunT, stun); const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
+        // 3/4 级：闪电连锁到范围外最近的 2/4 只单词怪
+        const chain = [0, 0, 2, 4][t.lv - 1]
+        if (chain) {
+          const hit = new Set(ws)
+          let from = ws[0]
+          for (let k = 0; k < chain; k++) {
+            const fp = tdPos(from.d)
+            const next = tdAlive("word").filter((m) => !hit.has(m)).map((m) => ({ m, d: Math.hypot(tdPos(m.d).x - fp.x, tdPos(m.d).y - fp.y) })).filter((x) => x.d < 4).sort((a, b) => a.d - b.d)[0]
+            if (!next) break
+            const np = tdPos(next.m.d)
+            next.m.stunT = Math.max(next.m.stunT, stun); hit.add(next.m)
+            TD.parts.push({ zap: true, x1: fp.x, y1: fp.y, x2: np.x, y2: np.y, t: 0.35 })
+            from = next.m
+          }
+        }
         tdSfx("zap"); t.cd = 0.8
       }
     }
@@ -855,8 +896,8 @@ function tdFxUpdate(dt) {
       else if (s.kind === "ball") {
         tdBoom(tx, ty, 14, ["#555", "#ff9a3c", "#ffd700"]); tdSfx("boom")
         tdAlive().forEach((m) => {
-          const p = tdPos(m.d); if (Math.hypot(p.x - tx, p.y - ty) > 1.3) return
-          if (m.kind === "minion") { m.dead = true; TD.gold += 3; TD.goldEarned += 3 } else m.kbT = 1.2
+          const p = tdPos(m.d); if (Math.hypot(p.x - tx, p.y - ty) > (s.r || 1.3)) return
+          if (m.kind === "minion") { m.dead = true; TD.gold += 3; TD.goldEarned += 3 } else m.kbT = Math.max(m.kbT, s.kb || 1.2)
         })
       }
     } else { s.x += dx / dist * step; s.y += dy / dist * step }
@@ -919,7 +960,8 @@ function tdDraw() {
       ctx.setLineDash([4, 3]); ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([])
       tdText(ctx, "+", x, y, T * 0.5, "#fff", "rgba(0,0,0,0.4)")
     } else {
-      ctx.fillStyle = "#6d5a48"; ctx.fill(); ctx.strokeStyle = t.lv === 2 ? "#ffd700" : "#3d2f22"; ctx.lineWidth = 3; ctx.stroke()
+      ctx.fillStyle = ["#6d5a48", "#6d5a48", "#7a4fb0", "#c8961e"][t.lv - 1]; ctx.fill()
+      ctx.strokeStyle = t.lv >= 2 ? "#ffd700" : "#3d2f22"; ctx.lineWidth = t.lv === 4 ? 4 : 3; ctx.stroke()
       {
         // 能量环：弓箭塔显示电池剩多少；其他塔充满一次就发光
         const f = Math.min(1, (t.charge || 0) / (t.k === "archer" ? tdCap(t) : tdCost(t)))
@@ -929,7 +971,7 @@ function tdDraw() {
         ctx.stroke(); ctx.shadowBlur = 0
       }
       tdEmo(ctx, TD_TOWERS[t.k].icon, x, y - T * 0.05, T * 0.62)
-      if (t.lv === 2) tdEmo(ctx, "⭐", x + T * 0.32, y - T * 0.32, T * 0.3)
+      for (let k = 1; k < t.lv; k++) tdEmo(ctx, "⭐", x + (k - t.lv / 2) * T * 0.24, y + T * 0.42, T * 0.22)
     }
   })
   // 怪物
@@ -1000,7 +1042,7 @@ function tdSiegeInit() {
   TD.bricks = []
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (TD.bricks.length < TD.sq.length) TD.bricks.push({ r, c, down: false })
   TD.bRows = rows
-  TD.cannonMax = Math.max(9, 16 - TD.lv * 0.12)
+  TD.cannonMax = Math.max(7, 13 - TD.lv * 0.15)
   TD.cannonT = TD.cannonMax
   TD.shield = false
   TD.rocks = []

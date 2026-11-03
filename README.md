@@ -16,6 +16,8 @@ A spelling game for 5th graders. Single static page, works offline, no accounts.
   (×1.5 for a first-try answer, ×1.5–2 for combos). Every tower only acts when charged: 🏹 archer (1 energy per volley at
   gold-stealing bats), ❄️ ice (freeze pulse, 5), 💣 cannon (knock back, 7), ⚡ tesla (stun, 9). A wrong answer is a dud:
   the energy fizzles and the combo resets.
+- Towers upgrade to **Lv.4**; Lv.3–4 add new moves (archers hit 2–3 bats per volley, ice freezes solid at Lv.4,
+  Lv.4 cannon knocks back every word monster in range, tesla lightning chains at Lv.3–4).
 - Every 6th level is a 🏯 **siege**: each spelled word knocks a brick off the enemy fortress, and the enemy cannon fires on a timer.
   A perfect word gives a 🛡️ shield. Knock down every brick to capture the boss for the collection.
 - A word counts as a correct dictation only when it's spelled with no wrong letters. Missed words return in the next wave.
