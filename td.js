@@ -27,10 +27,10 @@ const TD_MAPS = [
   { path: [[-1, 7], [3, 7], [3, 1], [7, 1], [7, 5], [11, 5]], spots: [[1, 5], [5, 3], [5, 6], [9, 3], [9, 7], [5, 0]] },
 ]
 const TD_TOWERS = {
-  archer: { icon: "🏹", name: "弓箭塔", cost: [50, 60], range: [2.6, 3.1], unlock: 1, desc: "射偷金币的蝙蝠" },
-  ice:    { icon: "❄️", name: "冰冻塔", cost: [60, 70], range: [2.3, 2.8], unlock: 1, desc: "范围内的怪物变慢" },
-  cannon: { icon: "💣", name: "大炮塔", cost: [90, 90], range: [2.4, 2.9], unlock: 3, desc: "把单词怪轰回去 + 炸蝙蝠" },
-  tesla:  { icon: "⚡", name: "闪电塔", cost: [120, 100], range: [2.6, 3.1], unlock: 7, desc: "定时电晕附近的单词怪" },
+  archer: { icon: "🏹", name: "弓箭塔", cost: [50, 60], range: [2.6, 3.1], unlock: 1, desc: "射偷金币的蝙蝠 · 1 格电 1 轮箭" },
+  ice:    { icon: "❄️", name: "冰冻塔", cost: [60, 70], range: [2.3, 2.8], unlock: 1, desc: "冻慢范围内的怪 · 5 格电" },
+  cannon: { icon: "💣", name: "大炮塔", cost: [90, 90], range: [2.4, 2.9], unlock: 3, desc: "把单词怪轰回去、炸蝙蝠 · 7 格电" },
+  tesla:  { icon: "⚡", name: "闪电塔", cost: [120, 100], range: [2.6, 3.1], unlock: 7, desc: "电晕附近的单词怪 · 9 格电" },
 }
 const TD_UPGRADES = {
   heart: { icon: "❤️", name: "城堡加固", desc: "每关多 1 颗心", cost: [80, 160, 240] },
@@ -531,9 +531,11 @@ function tdKill(m, perfect, p) {
   tdSfx("death")
   if (TD.target === m) TD.target = null
 }
-// 能量：发射时打对的每个字母 = 1 格电，流进每座塔（弓箭塔除外，它自动打蝙蝠）
+// 能量：发射时打对的每个字母 = 1 格电，流进每座塔（所有塔都靠电出手）
 //   一次拼对 ×1.5；连击 2 次 ×1.5，3 次以上 ×2
-function tdCost(t) { return { ice: [5, 4], cannon: [7, 6], tesla: [9, 8] }[t.k][t.lv - 1] }
+function tdCost(t) { return { archer: [1, 1], ice: [5, 4], cannon: [7, 6], tesla: [9, 8] }[t.k][t.lv - 1] }
+// 最多能存多少电：弓箭塔一格电射一轮，电池大一点（12 / 16 格）；其他塔存两次出手的电
+function tdCap(t) { return t.k === "archer" ? (t.lv === 2 ? 16 : 12) : tdCost(t) * 2 }
 function tdCharge(letters, perfect) {
   TD.combo = (TD.combo || 0) + 1
   const mult = (1 + 0.5 * Math.min(TD.combo - 1, 2)) * (perfect ? 1.5 : 1)
@@ -541,9 +543,9 @@ function tdCharge(letters, perfect) {
   const from = { x: TD.castle[0], y: TD.castle[1] - 0.6 }
   let any = false
   TD.towers.forEach((t, i) => {
-    if (!t || t.k === "archer") return
+    if (!t) return
     any = true
-    t.charge = Math.min(tdCost(t) * 2, (t.charge || 0) + gain)
+    t.charge = Math.min(tdCap(t), (t.charge || 0) + gain)
     const [sx, sy] = TD.map.spots[i]
     TD.shots.push({ x: from.x, y: from.y, tx: sx + 0.5, ty: sy + 0.5, v: 9, kind: "energy", c: "#ffe066" })
   })
@@ -788,7 +790,7 @@ function tdUpdate(dt) {
     t.cd -= dt
     if (t.cd > 0) return
     // 冰冻 / 大炮 / 闪电：有电才出手（电来自拼对的字母）
-    const ready = t.k !== "archer" && (t.charge || 0) >= tdCost(t)
+    const ready = (t.charge || 0) >= tdCost(t)
     if (t.k === "ice") {
       if (ready && inR.some((m) => m.kind === "word")) {
         inR.forEach((m) => { m.slowT = Math.max(m.slowT, t.lv === 2 ? 5 : 3.5) })
@@ -799,7 +801,7 @@ function tdUpdate(dt) {
     }
     if (t.k === "archer") {
       const bats = inR.filter((m) => m.kind === "minion")
-      if (bats.length) { const m = bats.reduce((a, b) => (b.d > a.d ? b : a)); TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv, c: "#8b5a2b" }); t.cd = t.lv === 2 ? 0.55 : 0.85 }
+      if (ready && bats.length) { t.charge -= tdCost(t); const m = bats.reduce((a, b) => (b.d > a.d ? b : a)); TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv, c: "#8b5a2b" }); t.cd = t.lv === 2 ? 0.55 : 0.85 }
     } else if (t.k === "cannon") {
       if (ready && inR.length) {
         t.charge -= tdCost(t)
@@ -918,9 +920,9 @@ function tdDraw() {
       tdText(ctx, "+", x, y, T * 0.5, "#fff", "rgba(0,0,0,0.4)")
     } else {
       ctx.fillStyle = "#6d5a48"; ctx.fill(); ctx.strokeStyle = t.lv === 2 ? "#ffd700" : "#3d2f22"; ctx.lineWidth = 3; ctx.stroke()
-      if (t.k !== "archer") {
-        // 能量环：充满就发光
-        const f = Math.min(1, (t.charge || 0) / tdCost(t))
+      {
+        // 能量环：弓箭塔显示电池剩多少；其他塔充满一次就发光
+        const f = Math.min(1, (t.charge || 0) / (t.k === "archer" ? tdCap(t) : tdCost(t)))
         ctx.beginPath(); ctx.arc(x, y, T * 0.5, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2)
         ctx.strokeStyle = f >= 1 ? "#ffe066" : "rgba(255,230,100,0.75)"; ctx.lineWidth = f >= 1 ? 4 : 3
         if (f >= 1) { ctx.shadowColor = "#ffe066"; ctx.shadowBlur = 10 }
