@@ -26,12 +26,38 @@ const TD_MAPS = [
   { path: [[-1, 2], [4, 2], [4, 6], [8, 6], [8, 2], [11, 2]], spots: [[2, 1], [2, 4], [6, 3], [6, 8], [10, 1], [10, 4]] },
   { path: [[-1, 7], [3, 7], [3, 1], [7, 1], [7, 5], [11, 5]], spots: [[1, 5], [5, 3], [5, 6], [9, 3], [9, 7], [5, 0]] },
 ]
+// 每座塔 4 级。cost[0] = 造价，cost[1..3] = 升到 2/3/4 级的价钱；up[n] = 升到 n+1 级后的效果说明
 const TD_TOWERS = {
-  archer: { icon: "🏹", name: "弓箭塔", cost: [50, 60], range: [2.6, 3.1], unlock: 1, desc: "射偷金币的蝙蝠 · 1 格电 1 轮箭" },
-  ice:    { icon: "❄️", name: "冰冻塔", cost: [60, 70], range: [2.3, 2.8], unlock: 1, desc: "冻慢范围内的怪 · 5 格电" },
-  cannon: { icon: "💣", name: "大炮塔", cost: [90, 90], range: [2.4, 2.9], unlock: 3, desc: "把单词怪轰回去、炸蝙蝠 · 7 格电" },
-  tesla:  { icon: "⚡", name: "闪电塔", cost: [120, 100], range: [2.6, 3.1], unlock: 7, desc: "电晕附近的单词怪 · 9 格电" },
+  archer: { icon: "🏹", name: "弓箭塔", cost: [50, 60, 120, 180], range: [2.6, 3.1, 3.3, 3.6], unlock: 1, desc: "射偷金币的蝙蝠 · 1 格电 1 轮箭",
+    up: ["", "箭伤害翻倍、射得更快", "一轮射 2 只蝙蝠", "一轮射 3 只蝙蝠，电池 24 格"] },
+  ice:    { icon: "❄️", name: "冰冻塔", cost: [60, 70, 120, 180], range: [2.3, 2.8, 3.2, 3.4], unlock: 1, desc: "冻慢范围内的怪 · 5 格电",
+    up: ["", "冻 5 秒，只要 4 格电", "范围更大，冻 6 秒", "大招：先完全冻住 2 秒，再冻慢"] },
+  cannon: { icon: "💣", name: "大炮塔", cost: [90, 90, 120, 180], range: [2.4, 2.9, 3.1, 3.3], unlock: 3, desc: "把单词怪轰回去、炸蝙蝠 · 7 格电",
+    up: ["", "只要 6 格电", "轰得更远，爆炸范围更大", "大招：一炮轰退范围内所有单词怪"] },
+  tesla:  { icon: "⚡", name: "闪电塔", cost: [120, 100, 120, 180], range: [2.6, 3.1, 3.3, 3.5], unlock: 7, desc: "电晕附近的单词怪 · 9 格电",
+    up: ["", "电晕 3 秒，只要 8 格电", "闪电连锁：范围外 2 只怪也被电到", "大招：电晕 4 秒，连锁 4 只"] },
 }
+const TD_MAX_LV = 4
+// 合体塔：两座不同的塔花金币合成一座。带弓箭塔的合体打蝙蝠不花电；对付单词怪还是要电（来自拼写）
+const TD_MERGE_COST = 150
+const TD_HYBRIDS = {
+  "archer+cannon": { k: "bomb", icon: "💥", name: "炸弹塔", range: 3.2, energy: 6, desc: "打蝙蝠不花电；用电把范围内的单词怪全部炸回去",
+    bats: { n: 2, dmg: 2, cd: 0.5 }, shell: { kb: 2, r: 1.8 } },
+  "archer+ice": { k: "frostbow", icon: "🧊", name: "冰箭塔", range: 3.2, energy: 4, desc: "打蝙蝠不花电；用电冻慢单词怪 6 秒",
+    bats: { n: 2, dmg: 2, cd: 0.5 }, pulse: { slow: 6 } },
+  "archer+tesla": { k: "stormbow", icon: "🌩️", name: "雷弓塔", range: 3.3, energy: 7, desc: "打蝙蝠不花电；用电电晕单词怪 3 秒并连锁 2 只",
+    bats: { n: 2, dmg: 2, cd: 0.5 }, zap: { stun: 3, chain: 2 } },
+  "cannon+ice": { k: "frostcannon", icon: "☃️", name: "冰炮塔", range: 3.2, energy: 6, desc: "用电轰退范围内的单词怪，同时冻住 2 秒",
+    shell: { kb: 2, r: 1.8, stun: 2 } },
+  "ice+tesla": { k: "blizzard", icon: "🌨️", name: "暴风雪塔", range: 3.4, energy: 7, desc: "用电让范围内所有怪冻慢 6 秒 + 电晕 2.5 秒",
+    pulse: { slow: 6, stun: 2.5 } },
+  "cannon+tesla": { k: "thunder", icon: "💫", name: "雷炮塔", range: 3.3, energy: 7, desc: "用电轰退单词怪，再连锁电晕 2 只",
+    shell: { kb: 2, r: 1.8, stun: 2, chain: 2 } },
+}
+Object.entries(TD_HYBRIDS).forEach(([pair, h]) => {
+  TD_TOWERS[h.k] = { icon: h.icon, name: h.name, desc: h.desc, range: [h.range, h.range, h.range, h.range], cost: [0], unlock: 1, hybrid: true, def: h, pair: pair.split("+") }
+})
+const tdRecipe = (a, b) => TD_HYBRIDS[[a, b].sort().join("+")]
 const TD_UPGRADES = {
   heart: { icon: "❤️", name: "城堡加固", desc: "每关多 1 颗心", cost: [80, 160, 240] },
   gold:  { icon: "💰", name: "战争金库", desc: "开局多 30 金币", cost: [60, 120, 180] },
@@ -280,8 +306,9 @@ function tdBattle(lv, plan, rule = null) {
     queue: [], retry: [], spawnT: 0, minions: 0, minionT: 0,
     mons: [], shots: [], parts: [], texts: [], towers: map.spots.map(() => null),
     target: null, res: new Map(), combo: 0, paused: false, menu: -1, last: 0, t: 0, nextId: 1,
-    speed: Math.min(0.75, 0.42 * (1 + 0.025 * (lv - 1))), gap: Math.max(7, 13 - 0.25 * lv),
-    maxAlive: lv <= 3 ? 2 : lv <= 9 ? 3 : 4,
+    // 难度：比原来快约 40%，刷怪更密，同时在场的怪更多
+    speed: Math.min(1.05, 0.6 * (1 + 0.04 * (lv - 1))), gap: Math.max(4.5, 10 - 0.3 * lv),
+    maxAlive: lv <= 2 ? 2 : lv <= 6 ? 3 : lv <= 14 ? 4 : 5,
   }
   // 路径
   const pts = map.path.map(([x, y]) => [x + 0.5, y + 0.5])
@@ -371,7 +398,7 @@ function tdPack(items) {
   const ghosts = items.filter((it) => it.ghost)
   const specials = items.filter((it) => !it.ghost && it.o.special)
   const normals = items.filter((it) => !it.ghost && !it.o.special)
-  const sizes = TD.lv <= 2 ? [1, 2, 2, 1, 2] : [2, 3, 2, 1, 3]
+  const sizes = TD.lv <= 2 ? [1, 2, 2, 1, 2] : TD.lv <= 7 ? [2, 3, 2, 1, 3] : [2, 3, 3, 2, 3]
   const elites = specials.map((sp) => ({ items: [...normals.splice(-Math.min(2, Math.max(0, normals.length - 1))), sp] }))
   const chunks = []
   let k = 0
@@ -533,9 +560,44 @@ function tdKill(m, perfect, p) {
 }
 // 能量：发射时打对的每个字母 = 1 格电，流进每座塔（所有塔都靠电出手）
 //   一次拼对 ×1.5；连击 2 次 ×1.5，3 次以上 ×2
-function tdCost(t) { return { archer: [1, 1], ice: [5, 4], cannon: [7, 6], tesla: [9, 8] }[t.k][t.lv - 1] }
+function tdCost(t) { if (TD_TOWERS[t.k].hybrid) return TD_TOWERS[t.k].def.energy; return { archer: [1, 1, 1, 1], ice: [5, 4, 4, 4], cannon: [7, 6, 6, 6], tesla: [9, 8, 8, 8] }[t.k][t.lv - 1] }
 // 最多能存多少电：弓箭塔一格电射一轮，电池大一点（12 / 16 格）；其他塔存两次出手的电
-function tdCap(t) { return t.k === "archer" ? (t.lv === 2 ? 16 : 12) : tdCost(t) * 2 }
+function tdCap(t) { if (TD_TOWERS[t.k].hybrid) return tdCost(t) * 2; return t.k === "archer" ? [12, 16, 20, 24][t.lv - 1] : tdCost(t) * 2 }
+// 闪电连锁：从 start 跳到附近 n 只还没被电到的单词怪
+function tdChain(start, n, stun, hit) {
+  let from = start
+  for (let k = 0; k < n && from; k++) {
+    const fp = tdPos(from.d)
+    const next = tdAlive("word").filter((m) => !hit.has(m)).map((m) => ({ m, d: Math.hypot(tdPos(m.d).x - fp.x, tdPos(m.d).y - fp.y) })).filter((x) => x.d < 4).sort((a, b) => a.d - b.d)[0]
+    if (!next) break
+    const np = tdPos(next.m.d)
+    next.m.stunT = Math.max(next.m.stunT, stun); hit.add(next.m)
+    TD.parts.push({ zap: true, x1: fp.x, y1: fp.y, x2: np.x, y2: np.y, t: 0.35 })
+    from = next.m
+  }
+}
+// 合体塔：蝙蝠（不花电） + 单词怪（花电）
+function tdHybridAct(t, def, cx, cy, inR, dt) {
+  t.cdB = (t.cdB || 0) - dt; t.cd -= dt
+  if (def.bats && t.cdB <= 0) {
+    const bats = inR.filter((m) => m.kind === "minion").sort((a, b) => b.d - a.d).slice(0, def.bats.n)
+    if (bats.length) { bats.forEach((m) => TD.shots.push({ x: cx, y: cy, m, v: 10, kind: "arrow", dmg: def.bats.dmg, c: "#7a5230" })); t.cdB = def.bats.cd }
+  }
+  if (t.cd > 0) return
+  const words = inR.filter((m) => m.kind === "word")
+  if ((t.charge || 0) < def.energy || !words.length) return
+  t.charge -= def.energy; t.cd = 0.8
+  if (def.pulse) {
+    inR.forEach((m) => { m.slowT = Math.max(m.slowT, def.pulse.slow); if (def.pulse.stun && m.kind === "word") m.stunT = Math.max(m.stunT, def.pulse.stun) })
+    tdSfx("freeze"); if (def.pulse.stun) tdSfx("zap")
+    for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; TD.parts.push({ x: cx, y: cy, vx: Math.cos(a) * 3.5, vy: Math.sin(a) * 3.5 - 1, t: 0.7, c: def.pulse.stun ? "#e0f7ff" : "#bfe9ff", s: 0.1 }) }
+  }
+  if (def.shell) words.forEach((m) => TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: def.shell.stun ? "#3a6ea5" : "#333", kb: def.shell.kb, r: def.shell.r, stun: def.shell.stun, chain: def.shell.chain }))
+  if (def.zap) {
+    words.forEach((m) => { m.stunT = Math.max(m.stunT, def.zap.stun); const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
+    tdChain(words[0], def.zap.chain, def.zap.stun, new Set(words)); tdSfx("zap")
+  }
+}
 function tdCharge(letters, perfect) {
   TD.combo = (TD.combo || 0) + 1
   const mult = (1 + 0.5 * Math.min(TD.combo - 1, 2)) * (perfect ? 1.5 : 1)
@@ -674,10 +736,17 @@ function tdHud() {
 // 造塔
 // ═══════════════════════════════════════════════════════════════════════
 function tdTap(e) {
-  if (!TD || TD.paused && TD.menu < 0) return
+  if (!TD) return
   const r = TD.cv.getBoundingClientRect()
   const x = (e.clientX - r.left) / TD.tile, y = (e.clientY - r.top) / TD.tile
   if (TD.siege) return
+  if (TD.mergeFrom != null) {
+    const sj = TD.map.spots.findIndex(([sx, sy]) => Math.hypot(sx + 0.5 - x, sy + 0.5 - y) < 0.6)
+    if (sj >= 0 && sj !== TD.mergeFrom && TD.towers[sj]) tdMergeConfirm(TD.mergeFrom, sj)
+    else tdCloseMenu()
+    return
+  }
+  if (TD.paused && TD.menu < 0) return
   // 点到防御塔空地
   const si = TD.map.spots.findIndex(([sx, sy]) => Math.hypot(sx + 0.5 - x, sy + 0.5 - y) < 0.6)
   if (si >= 0) { tdOpenMenu(si); return }
@@ -695,7 +764,7 @@ function tdOpenMenu(si) {
   const [sx, sy] = TD.map.spots[si]
   let html
   if (!t) {
-    html = `<div class="tp-title">🔨 造一座塔（游戏暂停中）</div>${Object.entries(TD_TOWERS).map(([k, T]) => {
+    html = `<div class="tp-title">🔨 造一座塔（游戏暂停中）</div>${Object.entries(TD_TOWERS).filter(([, T]) => !T.hybrid).map(([k, T]) => {
       const locked = TD.lv < T.unlock
       return `<button class="td-opt" data-build="${k}" ${locked || TD.gold < T.cost[0] ? "disabled" : ""}>
         <span class="to-i">${T.icon}</span><span><div>${T.name}</div><div class="to-d">${locked ? `第 ${T.unlock} 关解锁` : T.desc}</div></span>
@@ -703,8 +772,13 @@ function tdOpenMenu(si) {
     }).join("")}`
   } else {
     const T = TD_TOWERS[t.k]
-    html = `<div class="tp-title">${T.icon} ${T.name} Lv.${t.lv}</div>
-      ${t.lv < 2 ? `<button class="td-opt" data-up ${TD.gold < T.cost[1] ? "disabled" : ""}><span class="to-i">⬆️</span><span><div>升级</div><div class="to-d">范围更大、效果更强</div></span><span class="to-c">💰${T.cost[1]}</span></button>` : ""}
+    const canMerge = !T.hybrid && TD.towers.some((o, j) => o && j !== si && !TD_TOWERS[o.k].hybrid && o.k !== t.k)
+    html = T.hybrid ? `<div class="tp-title">${T.icon} ${T.name}（合体塔）</div>
+      <div class="to-d" style="text-align:center;margin-top:4px">${T.desc} · ${T.def.energy} 格电</div>
+      <div class="to-d" style="text-align:center;margin-top:4px">⭐ 合体塔已经是最强形态</div>` : `<div class="tp-title">${T.icon} ${T.name} Lv.${t.lv}</div>
+      ${t.lv < TD_MAX_LV ? `<button class="td-opt" data-up ${TD.gold < T.cost[t.lv] ? "disabled" : ""}><span class="to-i">⬆️</span><span><div>升到 Lv.${t.lv + 1}</div><div class="to-d">${T.up[t.lv]}</div></span><span class="to-c">💰${T.cost[t.lv]}</span></button>` : `<div class="to-d" style="text-align:center;margin-top:6px">⭐ 已经满级</div>`}
+      ${canMerge ? `<button class="td-opt" data-merge ${TD.gold < TD_MERGE_COST ? "disabled" : ""}><span class="to-i">🔗</span><span><div>合体</div><div class="to-d">和另一种塔合成一座更强的塔</div></span><span class="to-c">💰${TD_MERGE_COST}</span></button>` : ""}`
+    html += `
       <button class="td-opt" data-sell><span class="to-i">💰</span><span><div>卖掉</div><div class="to-d">返还一半金币</div></span><span class="to-c">+${tdSellValue(t)}</span></button>`
   }
   html += `<button class="td-opt" data-close style="justify-content:center">✕ 关闭</button>`
@@ -722,7 +796,15 @@ function tdOpenMenu(si) {
     tdSfx("build"); tdBoom(sx + 0.5, sy + 0.5, 14, ["#fff", "#ffd700"]); tdCloseMenu()
   } })
   const up = pop.querySelector("[data-up]")
-  if (up) up.onclick = () => { const T = TD_TOWERS[t.k]; if (TD.gold < T.cost[1]) return; TD.gold -= T.cost[1]; t.lv = 2; t.spent += T.cost[1]; tdSfx("build"); tdCloseMenu() }
+  if (up) up.onclick = () => {
+    const T = TD_TOWERS[t.k], c = T.cost[t.lv]
+    if (t.lv >= TD_MAX_LV || TD.gold < c) return
+    TD.gold -= c; t.lv++; t.spent += c
+    tdSfx("build"); tdBoom(sx + 0.5, sy + 0.5, 18, ["#ffd700", "#fff"]); tdFloat(sx + 0.5, sy - 0.2, `Lv.${t.lv}!`, "#ffd700", 1.2)
+    tdCloseMenu()
+  }
+  const mg = pop.querySelector("[data-merge]")
+  if (mg) mg.onclick = () => tdMergePick(si)
   const sell = pop.querySelector("[data-sell]")
   if (sell) sell.onclick = () => { TD.gold += tdSellValue(t); TD.towers[si] = null; tdSfx("coin"); tdCloseMenu() }
   pop.querySelector("[data-close]").onclick = tdCloseMenu
@@ -730,7 +812,69 @@ function tdOpenMenu(si) {
 function tdSellValue(t) { return Math.floor(t.spent / 2) }
 function tdCloseMenu() {
   const pop = $("#td-pop"); if (pop) pop.classList.remove("show")
-  if (TD) { TD.menu = -1; TD.paused = false; TD.panelKey = null; tdPanel() }
+  if (TD) { TD.menu = -1; TD.mergeFrom = null; TD.paused = false; TD.panelKey = null; tdPanel() }
+}
+
+// ── 合体：先选一座塔，再点另一座 ─────────────────────
+function tdShowPop(html, si) {
+  const pop = $("#td-pop")
+  pop.innerHTML = html
+  const W = TD.tile * TD_COLS, H = TD.tile * TD_ROWS
+  let left = 4, top = 4
+  if (si != null) {
+    const [sx, sy] = TD.map.spots[si]
+    left = Math.max(4, Math.min(W - 214, (sx + 0.5) * TD.tile - 105)); top = (sy + 1) * TD.tile
+    if (top + 220 > H && sy * TD.tile - 220 > 0) top = sy * TD.tile - 220
+  }
+  pop.style.left = left + "px"; pop.style.top = Math.max(4, top) + "px"
+  pop.classList.add("show")
+}
+function tdMergePick(si) {
+  const t = TD.towers[si], T = TD_TOWERS[t.k]
+  TD.menu = -1; TD.mergeFrom = si; TD.paused = true
+  const list = Object.keys(TD_TOWERS).filter((k) => !TD_TOWERS[k].hybrid && k !== t.k).map((k) => {
+    const h = tdRecipe(t.k, k)
+    return `<div class="to-d" style="margin-top:3px">${T.icon} + ${TD_TOWERS[k].icon} = ${h.icon} <b>${h.name}</b></div>`
+  }).join("")
+  // 提示放在地图下面的面板里，别挡住地图上的塔
+  $("#td-pop").classList.remove("show")
+  TD.panelKey = "merge"
+  $("#td-panel").innerHTML = `<div class="td-mid" style="text-align:left">
+      <div class="td-clue" style="color:#6b3eb0">🔗 点地图上另一座塔来合体（游戏暂停中）</div>${list}</div>
+    <button class="btn btn-secondary" id="td-merge-cancel">✕ 取消</button>`
+  $("#td-merge-cancel").onclick = tdCloseMenu
+}
+function tdMergeConfirm(a, b) {
+  const ta = TD.towers[a], tb = TD.towers[b]
+  const A = TD_TOWERS[ta.k], B = TD_TOWERS[tb.k]
+  const h = !B.hybrid && ta.k !== tb.k && tdRecipe(ta.k, tb.k)
+  TD.mergeFrom = null; TD.menu = -1; TD.paused = true
+  if (!h) {
+    tdShowPop(`<div class="tp-title">这两座塔不能合体</div><div class="to-d" style="text-align:center">要两种<b>不同</b>的普通塔</div>
+      <button class="td-opt" data-close style="justify-content:center">好的</button>`, b)
+    $("#td-pop [data-close]").onclick = tdCloseMenu
+    return
+  }
+  tdShowPop(`<div class="tp-title">${A.icon} ${A.name} + ${B.icon} ${B.name}</div>
+    <div style="text-align:center;font-size:30px;margin-top:4px">${h.icon}</div>
+    <div class="tp-title">${h.name}</div>
+    <div class="to-d" style="text-align:center">${h.desc} · ${h.energy} 格电</div>
+    <button class="td-opt" data-ok ${TD.gold < TD_MERGE_COST ? "disabled" : ""} style="justify-content:center">🔗 合体！<span class="to-c">💰${TD_MERGE_COST}</span></button>
+    <button class="td-opt" data-close style="justify-content:center">✕ 取消</button>`, a)
+  $("#td-pop [data-close]").onclick = tdCloseMenu
+  $("#td-pop [data-ok]").onclick = () => {
+    if (TD.gold < TD_MERGE_COST) return
+    TD.gold -= TD_MERGE_COST
+    // 合体塔留在第一座塔的位置，第二座的位置空出来
+    TD.towers[a] = { k: h.k, lv: 1, cd: 0.5, cdB: 0, charge: Math.max(ta.charge || 0, tb.charge || 0), spent: ta.spent + tb.spent + TD_MERGE_COST }
+    TD.towers[b] = null
+    const [ax, ay] = TD.map.spots[a], [bx, by] = TD.map.spots[b]
+    TD.shots.push({ x: bx + 0.5, y: by + 0.5, tx: ax + 0.5, ty: ay + 0.5, v: 8, kind: "energy", c: "#7CFC00" })
+    tdBoom(ax + 0.5, ay + 0.5, 34, ["#7CFC00", "#ffd700", "#fff", "#9df"])
+    tdFloat(ax + 0.5, ay - 0.2, `${h.icon} ${h.name}！`, "#7CFC00", 1.6)
+    ;[523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.14, "triangle", 0.1, i * 0.07))
+    tdCloseMenu()
+  }
 }
 
 function tdPauseMenu() {
@@ -787,13 +931,17 @@ function tdUpdate(dt) {
     if (!t) return
     const T = TD_TOWERS[t.k], [sx, sy] = TD.map.spots[i], cx = sx + 0.5, cy = sy + 0.5, R = T.range[t.lv - 1]
     const inR = tdAlive().filter((m) => { const p = tdPos(m.d); return Math.hypot(p.x - cx, p.y - cy) <= R })
+    if (T.hybrid) return tdHybridAct(t, T.def, cx, cy, inR, dt)
     t.cd -= dt
     if (t.cd > 0) return
     // 冰冻 / 大炮 / 闪电：有电才出手（电来自拼对的字母）
     const ready = (t.charge || 0) >= tdCost(t)
     if (t.k === "ice") {
       if (ready && inR.some((m) => m.kind === "word")) {
-        inR.forEach((m) => { m.slowT = Math.max(m.slowT, t.lv === 2 ? 5 : 3.5) })
+        inR.forEach((m) => {
+          m.slowT = Math.max(m.slowT, [3.5, 5, 6, 6][t.lv - 1])
+          if (t.lv === 4 && m.kind === "word") m.stunT = Math.max(m.stunT, 2)   // 4 级：完全冻住 2 秒
+        })
         t.charge -= tdCost(t); t.cd = 0.8; tdSfx("freeze")
         for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; TD.parts.push({ x: cx, y: cy, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, t: 0.6, c: "#bfe9ff", s: 0.09 }) }
       }
@@ -801,18 +949,31 @@ function tdUpdate(dt) {
     }
     if (t.k === "archer") {
       const bats = inR.filter((m) => m.kind === "minion")
-      if (ready && bats.length) { t.charge -= tdCost(t); const m = bats.reduce((a, b) => (b.d > a.d ? b : a)); TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv, c: "#8b5a2b" }); t.cd = t.lv === 2 ? 0.55 : 0.85 }
+      if (ready && bats.length) {
+        // 一轮箭：1/1/2/3 只蝙蝠，最靠近城堡的先射
+        t.charge -= tdCost(t)
+        bats.sort((a, b) => b.d - a.d).slice(0, [1, 1, 2, 3][t.lv - 1]).forEach((m) =>
+          TD.shots.push({ x: cx, y: cy, m, v: 9, kind: "arrow", dmg: t.lv >= 2 ? 2 : 1, c: "#8b5a2b" }))
+        t.cd = [0.85, 0.55, 0.5, 0.45][t.lv - 1]
+      }
     } else if (t.k === "cannon") {
       if (ready && inR.length) {
         t.charge -= tdCost(t)
-        const m = inR.reduce((a, b) => (b.d > a.d ? b : a))
-        TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: "#333" }); t.cd = 0.7
+        // 4 级：每只单词怪都挨一炮；否则打最靠前的
+        const words = inR.filter((m) => m.kind === "word")
+        const targets = t.lv === 4 && words.length ? words : [inR.reduce((a, b) => (b.d > a.d ? b : a))]
+        targets.forEach((m) => TD.shots.push({ x: cx, y: cy, m, v: 6, kind: "ball", c: "#333", kb: t.lv >= 3 ? 2 : 1.2, r: t.lv >= 3 ? 1.8 : 1.3 }))
+        t.cd = 0.7
       }
     } else if (t.k === "tesla") {
       const ws = inR.filter((m) => m.kind === "word")
       if (ready && ws.length) {
         t.charge -= tdCost(t)
-        ws.forEach((m) => { m.stunT = t.lv === 2 ? 3 : 2; const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
+        const stun = [2, 3, 3, 4][t.lv - 1]
+        ws.forEach((m) => { m.stunT = Math.max(m.stunT, stun); const p = tdPos(m.d); TD.parts.push({ zap: true, x1: cx, y1: cy, x2: p.x, y2: p.y, t: 0.35 }) })
+        // 3/4 级：闪电连锁到范围外最近的 2/4 只单词怪
+        const chain = [0, 0, 2, 4][t.lv - 1]
+        if (chain) tdChain(ws[0], chain, stun, new Set(ws))
         tdSfx("zap"); t.cd = 0.8
       }
     }
@@ -855,9 +1016,11 @@ function tdFxUpdate(dt) {
       else if (s.kind === "ball") {
         tdBoom(tx, ty, 14, ["#555", "#ff9a3c", "#ffd700"]); tdSfx("boom")
         tdAlive().forEach((m) => {
-          const p = tdPos(m.d); if (Math.hypot(p.x - tx, p.y - ty) > 1.3) return
-          if (m.kind === "minion") { m.dead = true; TD.gold += 3; TD.goldEarned += 3 } else m.kbT = 1.2
+          const p = tdPos(m.d); if (Math.hypot(p.x - tx, p.y - ty) > (s.r || 1.3)) return
+          if (m.kind === "minion") { m.dead = true; TD.gold += 3; TD.goldEarned += 3 }
+          else { m.kbT = Math.max(m.kbT, s.kb || 1.2); if (s.stun) m.stunT = Math.max(m.stunT, s.stun) }
         })
+        if (s.chain && s.m && !s.m.dead) tdChain(s.m, s.chain, s.stun || 2, new Set([s.m]))
       }
     } else { s.x += dx / dist * step; s.y += dy / dist * step }
   }
@@ -919,7 +1082,14 @@ function tdDraw() {
       ctx.setLineDash([4, 3]); ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([])
       tdText(ctx, "+", x, y, T * 0.5, "#fff", "rgba(0,0,0,0.4)")
     } else {
-      ctx.fillStyle = "#6d5a48"; ctx.fill(); ctx.strokeStyle = t.lv === 2 ? "#ffd700" : "#3d2f22"; ctx.lineWidth = 3; ctx.stroke()
+      const hy = TD_TOWERS[t.k].hybrid
+      ctx.fillStyle = hy ? "#127a6e" : ["#6d5a48", "#6d5a48", "#7a4fb0", "#c8961e"][t.lv - 1]; ctx.fill()
+      ctx.strokeStyle = hy ? "#7CFC00" : t.lv >= 2 ? "#ffd700" : "#3d2f22"; ctx.lineWidth = hy || t.lv === 4 ? 4 : 3; ctx.stroke()
+      if (TD.mergeFrom != null) {
+        // 选合体对象：起点绿色，能合的塔闪烁
+        const ok = i === TD.mergeFrom || (!hy && t.k !== TD.towers[TD.mergeFrom].k)
+        if (ok) { ctx.beginPath(); ctx.arc(x, y, T * (0.58 + 0.05 * Math.sin(TD.last / 120)), 0, Math.PI * 2); ctx.strokeStyle = i === TD.mergeFrom ? "#7CFC00" : "#fff"; ctx.setLineDash(i === TD.mergeFrom ? [] : [5, 4]); ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]) }
+      }
       {
         // 能量环：弓箭塔显示电池剩多少；其他塔充满一次就发光
         const f = Math.min(1, (t.charge || 0) / (t.k === "archer" ? tdCap(t) : tdCost(t)))
@@ -929,7 +1099,8 @@ function tdDraw() {
         ctx.stroke(); ctx.shadowBlur = 0
       }
       tdEmo(ctx, TD_TOWERS[t.k].icon, x, y - T * 0.05, T * 0.62)
-      if (t.lv === 2) tdEmo(ctx, "⭐", x + T * 0.32, y - T * 0.32, T * 0.3)
+      if (hy) tdText(ctx, "合体", x, y + T * 0.45, T * 0.2, "#7CFC00", "#063")
+      else for (let k = 1; k < t.lv; k++) tdEmo(ctx, "⭐", x + (k - t.lv / 2) * T * 0.24, y + T * 0.42, T * 0.22)
     }
   })
   // 怪物
@@ -1000,7 +1171,7 @@ function tdSiegeInit() {
   TD.bricks = []
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (TD.bricks.length < TD.sq.length) TD.bricks.push({ r, c, down: false })
   TD.bRows = rows
-  TD.cannonMax = Math.max(9, 16 - TD.lv * 0.12)
+  TD.cannonMax = Math.max(7, 13 - TD.lv * 0.15)
   TD.cannonT = TD.cannonMax
   TD.shield = false
   TD.rocks = []
