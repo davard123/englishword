@@ -307,7 +307,7 @@ function tdBattle(lv, plan, rule = null) {
     mons: [], shots: [], parts: [], texts: [], towers: map.spots.map(() => null),
     target: null, res: new Map(), combo: 0, paused: false, menu: -1, last: 0, t: 0, nextId: 1,
     // 难度：比原来快约 40%，刷怪更密，同时在场的怪更多
-    speed: Math.min(1.05, 0.6 * (1 + 0.04 * (lv - 1))), gap: Math.max(4.5, 10 - 0.3 * lv),
+    speed: Math.min(1.0, 0.54 * (1 + 0.04 * (lv - 1))), gap: Math.max(5, 11 - 0.3 * lv),
     maxAlive: lv <= 2 ? 2 : lv <= 6 ? 3 : lv <= 14 ? 4 : 5,
   }
   // 路径
@@ -386,8 +386,11 @@ function tdStartWave() {
   TD.queue = tdPack([...items, ...TD.retry.splice(0)])
   TD.phase = "wave"
   TD.spawnT = 1.2
-  TD.minions = Math.min(8, 2 + Math.floor(TD.lv / 2) + TD.waveNo)
-  TD.minionT = 4
+  // 蝙蝠：前几关少一点，第一只等 10 秒再来（先让孩子拼一两个词给塔充电）
+  TD.minions = Math.min(8, (TD.lv <= 3 ? 1 : 2) + Math.floor(TD.lv / 3) + TD.waveNo)
+  TD.minionT = 10
+  // 每一波开始：所有塔至少备好一次出手的电（弓箭塔 6 格）
+  TD.towers.forEach((t) => { if (t) t.charge = Math.max(t.charge || 0, t.k === "archer" ? 6 : tdCost(t)) })
   tdSfx("wave")
   tdFloat(TD_COLS / 2, TD_ROWS / 2, `第 ${TD.waveNo + 1} 波！`, "#ffd700", 1.6)
   tdPanel()
@@ -617,8 +620,9 @@ function tdCharge(letters, perfect) {
 function tdLeak(m) {
   m.dead = true
   if (m.kind === "minion") {
-    const g = Math.min(TD.gold, 10); TD.gold -= g
-    tdFloat(TD.castle[0], TD.castle[1] - 0.8, `-${g}💰 被偷了！`, "#ff8888"); tdSfx("leak"); return
+    // 一只蝙蝠偷 5 金币，最少给你留 30，不会被偷光
+    const g = Math.max(0, Math.min(5, TD.gold - 30)); TD.gold -= g
+    tdFloat(TD.castle[0], TD.castle[1] - 0.8, g ? `-${g}💰 被偷了！` : "🦇 没偷到！", "#ff8888"); tdSfx("leak"); return
   }
   const dmg = m.big ? 2 : 1
   TD.hearts = Math.max(0, TD.hearts - dmg)
@@ -792,7 +796,9 @@ function tdOpenMenu(si) {
   pop.querySelectorAll("[data-build]").forEach((b) => { b.onclick = () => {
     const k = b.dataset.build, T = TD_TOWERS[k]
     if (TD.gold < T.cost[0]) return
-    TD.gold -= T.cost[0]; TD.towers[si] = { k, lv: 1, cd: 0.5, spent: T.cost[0] }
+    TD.gold -= T.cost[0]
+    // 新塔自带一半电，造好就能用
+    const nt = { k, lv: 1, cd: 0.5, spent: T.cost[0] }; nt.charge = Math.ceil(tdCap(nt) / 2); TD.towers[si] = nt
     tdSfx("build"); tdBoom(sx + 0.5, sy + 0.5, 14, ["#fff", "#ffd700"]); tdCloseMenu()
   } })
   const up = pop.querySelector("[data-up]")
@@ -912,7 +918,7 @@ function tdUpdate(dt) {
     if (TD.queue.length && TD.spawnT <= 0 && tdAlive("word").length < TD.maxAlive) { tdSpawnWord(TD.queue.shift()); TD.spawnT = TD.gap }
     if (TD.queue.length && !tdAlive("word").length && TD.spawnT > 1.5) TD.spawnT = 1.5
     TD.minionT -= dt
-    if (TD.minions > 0 && TD.minionT <= 0) { tdSpawnMinion(); TD.minions--; TD.minionT = TD.minions % 3 === 0 ? 5 : 0.8 }
+    if (TD.minions > 0 && TD.minionT <= 0) { tdSpawnMinion(); TD.minions--; TD.minionT = TD.minions % 3 === 0 ? 6 : 1.2 }
   }
   // 怪物移动
   for (const m of TD.mons) {
